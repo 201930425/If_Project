@@ -18,6 +18,7 @@ TARGET_LANG = "ko"
 VOLUME_THRESHOLD = 0.001
 DB_NAME = "translations.db"
 KOBART_MODEL_NAME = "gogamza/kobart-summarization"
+INPUT_DEVICE_INDEX = None
 
 # --- 서버 설정 ---
 HOST = "0.0.0.0"

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>실시간 번역 - 세션 뷰</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin:0;
+            padding:15px;
+            display:flex;
+            flex-direction:column;
+            height:100vh;
+            background: #222;
+            color: #fff;
+        }
+
+        #toggle-summary {
+            align-self:flex-end;
+            margin-bottom:15px;
+            padding:8px 18px;
+            cursor:pointer;
+            background:#1dd1a1;
+            border:none;
+            border-radius:20px;
+            font-weight:bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: background 0.3s;
+        }
+        #toggle-summary:hover { background:#10ac84; }
+
+        #log {
+            flex:1;
+            overflow-y:auto;
+            display:flex;
+            flex-direction:column;
+            gap:12px;
+            padding:12px;
+            border-radius:15px;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .log-entry {
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+            opacity:0;
+            transform: translateY(10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .log-entry.show {
+            opacity:1;
+            transform: translateY(0);
+        }
+
+        .original, .translated {
+            max-width:70%;
+            padding:10px 14px;
+            border-radius:22px;
+            word-wrap:break-word;
+            font-size:14px;
+        }
+        .original {
+            background: rgba(255,255,255,0.2);
+            color:#fff;
+            align-self:flex-start;
+        }
+        .translated {
+            background: rgba(255,255,255,0.8);
+            color:#333;
+            align-self:flex-end;
+        }
+
+        .timestamp {
+            font-size:0.75em;
+            color: #ffd700;
+            text-align:center;
+        }
+    </style>
+</head>
+<body>
+    <button id="toggle-summary">요약 모드</button>
+    <div id="log"></div>
+
+    <script>
+        const socket = io();
+        const logDiv = document.getElementById("log");
+        const toggleBtn = document.getElementById("toggle-summary");
+        let summaryMode = false;
+        const logs = [];
+
+        socket.on("connect", () => console.log("✅ 서버 연결 성공"));
+
+        socket.on("new_translation", data => {
+            logs.push(data);
+            renderLogs(true);
+        });
+
+        toggleBtn.addEventListener("click", () => {
+            summaryMode = !summaryMode;
+            toggleBtn.textContent = summaryMode ? "전체 모드" : "요약 모드";
+            renderLogs(false);
+        });
+
+        function renderLogs(scrollToBottom = false) {
+            logDiv.innerHTML = "";
+            logs.forEach(data => {
+                const entry = document.createElement("div");
+                entry.classList.add("log-entry");
+
+                if(summaryMode){
+                    const translatedDiv = document.createElement("div");
+                    translatedDiv.classList.add("translated");
+                    translatedDiv.textContent = data.translated;
+                    entry.appendChild(translatedDiv);
+                } else {
+                    const timeDiv = document.createElement("div");
+                    timeDiv.classList.add("timestamp");
+                    timeDiv.textContent = data.time || "";
+
+                    const originalDiv = document.createElement("div");
+                    originalDiv.classList.add("original");
+                    originalDiv.textContent = data.original;
+
+                    const translatedDiv = document.createElement("div");
+                    translatedDiv.classList.add("translated");
+                    translatedDiv.textContent = data.translated;
+
+                    entry.appendChild(timeDiv);
+                    entry.appendChild(originalDiv);
+                    entry.appendChild(translatedDiv);
+                }
+
+                logDiv.appendChild(entry);
+                setTimeout(() => entry.classList.add("show"), 10);
+            });
+
+            if(scrollToBottom) logDiv.scrollTop = logDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
