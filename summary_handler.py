@@ -27,12 +27,18 @@ def load_kobart_model():
                 ignore_mismatched_sizes=True
             )
             print("✅ KoBART 모델 로드 완료.")
+            kobart_loading = False
+            return True
         except Exception as e:
             print(f"⚠️ KoBART 모델 로드 실패: {e}")
             kobart_model = None
             kobart_tokenizer = None
-        finally:
             kobart_loading = False
+            return False
+    elif kobart_model:
+        return True  # 이미 로드된 경우
+    else:  # 로드 중인 경우
+        return False
 
 
 def summarize_text(text, max_len=256):
@@ -44,8 +50,14 @@ def summarize_text(text, max_len=256):
         return "[KoBART 모델이 로드되지 않았습니다]"
 
     try:
+        # ⬇️ --- (수정) --- ⬇️
+        # KoBART 모델은 입력 텍스트를 <s>와 </s>로 감싸주어야
+        # 문맥을 더 잘 이해합니다.
+        formatted_text = "<s>" + text + "</s>"
+
         inputs = kobart_tokenizer(
-            text,
+            formatted_text,  # 'text' 대신 'formatted_text' 사용
+            # ⬆️ --- (수정 완료) --- ⬆️
             return_tensors="pt",
             max_length=1024,
             truncation=True,
@@ -55,11 +67,16 @@ def summarize_text(text, max_len=256):
             inputs['input_ids'],
             attention_mask=inputs['attention_mask'],
             num_beams=4,
+            min_length=60,  # 최소 60자 이상의 요약을 생성하도록 강제
             max_length=max_len,
             early_stopping=True,
             no_repeat_ngram_size=2
         )
-        summary = kobart_tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+
+        # KeyError: ' ' 오류를 피하기 위해 decode 방식을 변경합니다.
+        summary_raw = kobart_tokenizer.decode(summary_ids[0], skip_special_tokens=False)
+        # <usr> 태그도 수동으로 제거합니다.
+        summary = summary_raw.replace("<s>", "").replace("</s>", "").replace("<usr>", "").strip()
         return summary
     except Exception as e:
         print(f"⚠️ 요약 생성 중 오류 발생: {e}")
@@ -68,7 +85,7 @@ def summarize_text(text, max_len=256):
 
 
 def generate_summary_thread(latest_data):
-    """현재 세션의 데이터를 가져와 요약하고 전역 변수를 업데이트합니다."""
+    """(app.py용) 현재 세션의 데이터를 가져와 요약하고 전역 변수를 업데이트합니다."""
     global latest_summary
     print("🔄 요약 생성 시작...")
     session_id = latest_data.get("session_id")  # .get()으로 안전하게 접근

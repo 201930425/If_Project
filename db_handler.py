@@ -68,10 +68,34 @@ def fetch_data_from_db(session_id=None):
 
         if not text_list:
             return ""
+
+        # "\n" (줄바꿈) 대신 " " (공백)으로 문장을 연결합니다.
+        # 'gogamza' (뉴스) 모델은 하나의 긴 문단을 예상합니다.
         return " ".join(text_list)
     except Exception as e:
         print(f"⚠️ DB 읽기 실패: {e}")
         return ""
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_latest_session_id():
+    """DB에서 가장 최근의 session_id를 가져옵니다."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+        cursor = conn.cursor()
+        query = "SELECT session_id FROM transcripts ORDER BY timestamp DESC LIMIT 1"
+        cursor.execute(query)
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+        else:
+            return None
+    except Exception as e:
+        print(f"⚠️ 최근 세션 ID 조회 실패: {e}")
+        return None
     finally:
         if conn:
             conn.close()

@@ -25,7 +25,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 def index():
     """메인 HTML 페이지를 렌더링합니다."""
     # 5. 렌더링할 템플릿 이름 변경
-    return render_template("scratch.html")
+    return render_template("translation.html")
 
 # 6. /subtitle 라우트 제거
 # 7. /toggle_summary 라우트 제거
