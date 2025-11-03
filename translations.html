@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>실시간 번역 - 세션 뷰</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        margin:0;
+        padding:15px;
+        display:flex;
+        flex-direction:column;
+        height:100vh;
+        background: #222;
+        color: #fff;
+    }
+
+    #toggle-summary {
+        align-self:flex-end;
+        margin-bottom:15px;
+        padding:8px 18px;
+        cursor:pointer;
+        background:#1dd1a1;
+        border:none;
+        border-radius:20px;
+        font-weight:bold;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        transition: background 0.3s;
+    }
+    #toggle-summary:hover { background:#10ac84; }
+
+    #log {
+        flex:1;
+        overflow-y:auto;
+        display:flex;
+        flex-direction:column;
+        gap:12px;
+        padding:12px;
+        border-radius:15px;
+        background: rgba(255,255,255,0.05);
+        transition: opacity 0.4s ease;
+    }
+
+    .log-entry {
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+        opacity:0;
+        transform: translateY(10px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .log-entry.show {
+        opacity:1;
+        transform: translateY(0);
+    }
+
+    .original, .translated {
+        max-width:70%;
+        padding:10px 14px;
+        border-radius:22px;
+        word-wrap:break-word;
+        font-size:14px;
+    }
+    .original {
+        background: rgba(255,255,255,0.2);
+        color:#fff;
+        align-self:flex-start;
+    }
+    .translated {
+        background: rgba(255,255,255,0.8);
+        color:#333;
+        align-self:flex-end;
+    }
+
+    .timestamp {
+        font-size:0.75em;
+        color: #ffd700;
+        text-align:center;
+    }
+
+    /* 요약 모드 스타일 */
+    #summary-log {
+        flex:1;
+        display:none;
+        padding:20px;
+        border-radius:15px;
+        background: rgba(255,255,255,0.1);
+        color:#fff;
+        font-size:16px;
+        line-height:1.5;
+        overflow-y:auto;
+        text-align:center;
+    }
+</style>
+</head>
+<body>
+    <button id="toggle-summary" data-mode="full">요약 모드</button>
+    <div id="log"></div>
+    <div id="summary-log"></div>
+
+    <script>
+        const socket = io();
+        const logDiv = document.getElementById("log");
+        const summaryDiv = document.getElementById("summary-log");
+        const toggleBtn = document.getElementById("toggle-summary");
+        const logs = [];
+
+        socket.on("connect", () => console.log("✅ 서버 연결 성공"));
+
+        // 실시간 번역 로그 수신
+        socket.on("new_translation", data => {
+            logs.push(data);
+            renderLogs(logDiv, logs, true);
+        });
+
+        // 서버에서 요약 결과 수신
+        socket.on("summary_result", summary => {
+            summaryDiv.textContent = summary;
+            summaryDiv.scrollTop = summaryDiv.scrollHeight;
+        });
+
+        toggleBtn.addEventListener("click", () => {
+            if(toggleBtn.dataset.mode === "summary"){
+                // 전체 모드로 돌아가기
+                summaryDiv.style.display = "none";
+                logDiv.style.display = "flex";
+                toggleBtn.textContent = "요약 모드";
+                toggleBtn.dataset.mode = "full";
+            } else {
+                // 요약 모드 요청
+                logDiv.style.display = "none";
+                summaryDiv.style.display = "block";
+                toggleBtn.textContent = "전체 모드";
+                toggleBtn.dataset.mode = "summary";
+                summaryDiv.textContent = "[요약 생성 중...]";
+
+                // 서버에 KoBART 요약 요청
+                socket.emit("request_summary");
+            }
+        });
+
+        function renderLogs(container, dataLogs, scrollToBottom=false){
+            container.innerHTML = "";
+            dataLogs.forEach(data => {
+                const entry = document.createElement("div");
+                entry.classList.add("log-entry");
+
+                const timeDiv = document.createElement("div");
+                timeDiv.classList.add("timestamp");
+                timeDiv.textContent = data.time || "";
+
+                const originalDiv = document.createElement("div");
+                originalDiv.classList.add("original");
+                originalDiv.textContent = data.original;
+
+                const translatedDiv = document.createElement("div");
+                translatedDiv.classList.add("translated");
+                translatedDiv.textContent = data.translated;
+
+                entry.appendChild(timeDiv);
+                entry.appendChild(originalDiv);
+                entry.appendChild(translatedDiv);
+
+                container.appendChild(entry);
+                setTimeout(() => entry.classList.add("show"), 10);
+            });
+            if(scrollToBottom) container.scrollTop = container.scrollHeight;
+        }
+    </script>
+</body>
+</html>
