@@ -108,9 +108,16 @@
 
         socket.on("connect", () => console.log("✅ 서버 연결 성공"));
 
+        // 실시간 번역 로그 수신
         socket.on("new_translation", data => {
             logs.push(data);
             renderLogs(logDiv, logs, true);
+        });
+
+        // 서버에서 요약 결과 수신
+        socket.on("summary_result", summary => {
+            summaryDiv.textContent = summary;
+            summaryDiv.scrollTop = summaryDiv.scrollHeight;
         });
 
         toggleBtn.addEventListener("click", () => {
@@ -121,12 +128,15 @@
                 toggleBtn.textContent = "요약 모드";
                 toggleBtn.dataset.mode = "full";
             } else {
-                // 요약 모드로 전환
+                // 요약 모드 요청
                 logDiv.style.display = "none";
                 summaryDiv.style.display = "block";
                 toggleBtn.textContent = "전체 모드";
                 toggleBtn.dataset.mode = "summary";
-                renderSummary();
+                summaryDiv.textContent = "[요약 생성 중...]";
+
+                // 서버에 KoBART 요약 요청
+                socket.emit("request_summary");
             }
         });
 
@@ -156,14 +166,6 @@
                 setTimeout(() => entry.classList.add("show"), 10);
             });
             if(scrollToBottom) container.scrollTop = container.scrollHeight;
-        }
-
-        function renderSummary(){
-            // 간단 요약 예시: 최근 5개 번역을 한 문단으로 합침
-            const lastLogs = logs.slice(-5);
-            const summaryText = lastLogs.map(l => l.translated).join(" / ");
-            summaryDiv.textContent = summaryText;
-            summaryDiv.scrollTop = summaryDiv.scrollHeight;
         }
     </script>
 </body>

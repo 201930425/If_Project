@@ -21,16 +21,12 @@ DB_NAME = "translations.db"
 # '대화 요약' 모델 로드에 거듭 실패하여,
 # 로드가 확인된 'gogamza' 모델로 되돌립니다.
 KOBART_MODEL_NAME = "gogamza/kobart-summarization"
-# KOBART_MODEL_NAME = "j-min/kobart-talk-summary"
-# ⬆️ --- (수정 완료) --- ⬆️
+
 
 # --- 서버 설정 ---
 HOST = "0.0.0.0"
 PORT = 5000
 
-# --- (스테레오 믹스 설정) ---
-# 사용자의 오디오 입력 장치 인덱스 (None = PC 기본 사운드)
-# '스테레오 믹스' 등을 사용하려면 'check_mic.py'로 인덱스 확인
 
 # INPUT_DEVICE_INDEX = 12  # 예시: 특정 오디오 장치 인덱스 ( 기본값: None )
 INPUT_DEVICE_INDEX = None
@@ -52,5 +48,5 @@ FRAME_DURATION_MS = 30  # 감지 주기(ms)
 
 # 침묵 지속 시간(밀리초)
 # 말 멈춘 후 이 시간 동안 침묵이면 인식 시작
-SILENCE_TIMEOUT_MS = 600
+SILENCE_TIMEOUT_MS = 400
 # SILENCE_TIMEOUT_MS = 800 (기본값) # 숫자 커지면 문장길이가 길어지는 문제 발생
