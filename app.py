@@ -1,50 +1,54 @@
 from flask import Flask, render_template
-from flask_socketio import SocketIO  # 1. SocketIO 임포트
+from flask_socketio import SocketIO
 import threading
 from datetime import datetime
-
-# --- 로컬 모듈 임포트 ---
 from config import HOST, PORT
 from db_handler import init_db
-from audio_processor import main_audio_loop
-# 2. summary_handler 임포트 제거 (새 HTML이 사용 안 함)
-# -------------------------
+from audio_processor import main_audio_streaming
 
-# --- Flask 앱 및 전역 변수 초기화 ---
 app = Flask(__name__)
-# 3. SocketIO로 앱 초기화
 socketio = SocketIO(app, cors_allowed_origins="*")
-
-# 4. latest_data 및 summary_mode 전역 변수 제거
-# (SocketIO가 실시간으로 데이터를 밀어주므로 필요 없음)
-
-# ---------------------------------
 
 # --- Flask 라우트 ---
 @app.route("/")
 def index():
-    """메인 HTML 페이지를 렌더링합니다."""
-    # 5. 렌더링할 템플릿 이름 변경
     return render_template("translation.html")
 
-# 6. /subtitle 라우트 제거
-# 7. /toggle_summary 라우트 제거
+# --- 클라이언트 연결/해제 로그 ---
+@socketio.on("connect")
+def handle_connect():
+    print("✅ 클라이언트 연결됨 (웹 브라우저 접속 확인)")
 
-# --- 메인 실행 블록 ---
-if __name__ == "__main__":
-    init_db()  # DB 초기화
+@socketio.on("disconnect")
+def handle_disconnect():
+    print("❌ 클라이언트 연결 해제됨")
+
+# --- Whisper 자동 세션 함수 ---
+def start_auto_session():
+    """서버 실행 시 자동으로 Whisper 스트리밍을 시작"""
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    print(f"\n🎬 [자동 세션 시작] 세션 ID: {session_id}\n")
 
-    # 8. 오디오 스레드에 'socketio' 객체를 넘겨줌
+    stop_event = threading.Event()
     audio_thread = threading.Thread(
-        target=main_audio_loop,
-        args=(session_id, socketio,),  # latest_data 대신 socketio 전달
+        target=main_audio_streaming,
+        args=(session_id, socketio, stop_event),
         daemon=True
     )
     audio_thread.start()
+    print("🎤 Whisper 실시간 음성 인식 스레드 시작됨 ✅")
 
-    # 9. app.run() 대신 socketio.run()으로 서버 실행
-    print(f"🌍 Socket.IO 서버 시작: http://{HOST}:{PORT} 에서 확인하세요")
-    # allow_unsafe_werkzeug=True는 PyCharm 같은 환경에서 필요할 수 있습니다.
+# --- 메인 실행 블록 ---
+if __name__ == "__main__":
+    # DB 초기화
+    init_db()
+    print("✅ DB 초기화 완료")
+
+    # Flask-SocketIO 서버 정보
+    print(f"🌍 Socket.IO 서버 시작: http://{HOST}:{PORT} 에서 접속 가능")
+
+    # 서버 실행 직전에 자동 세션 시작
+    threading.Thread(target=start_auto_session, daemon=True).start()
+
+    # SocketIO 서버 실행
     socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True)
-
