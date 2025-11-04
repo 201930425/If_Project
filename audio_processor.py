@@ -1,4 +1,3 @@
-# audio_processor.py
 import sounddevice as sd
 import numpy as np
 import queue
@@ -32,12 +31,12 @@ print(f"🎧 Whisper 모델 ({MODEL_TYPE}) 로드 중...")
 model = WhisperModel(MODEL_TYPE, device="cpu", compute_type="int8")
 
 # ---------------- 오류 수정위한 코드 확인 공간 ------------- #
-# 전체 장치 리스트 출력
+# (디버깅용 코드는 그대로 둡니다)
+print("--- 사용 가능한 오디오 장치 목록 ---")
 for i, dev in enumerate(sd.query_devices()):
-    print(i, dev['name'], "max_input_channels=", dev['max_input_channels'])
-
-# 현재 기본 장치 정보(튜플: (input_index, output_index))
-print("default device:", sd.default.device)
+    print(f"  {i}: {dev['name']} (Input: {dev['max_input_channels']})")
+print(f"현재 기본 입/출력 장치 (인덱스): {sd.default.device}")
+print("---------------------------------")
 
 
 # ------------------------------
@@ -106,12 +105,12 @@ def main_audio_loop(session_id, socketio, stop_event=None):
 
     try:
         with sd.InputStream(
-            device=INPUT_DEVICE_INDEX,
-            samplerate=RATE,
-            blocksize=FRAME_SIZE,
-            dtype='int16',
-            channels=1,
-            callback=audio_callback
+                device=INPUT_DEVICE_INDEX,
+                samplerate=RATE,
+                blocksize=FRAME_SIZE,
+                dtype='int16',
+                channels=1,
+                callback=audio_callback
         ):
             if INPUT_DEVICE_INDEX is not None:
                 try:
@@ -122,7 +121,7 @@ def main_audio_loop(session_id, socketio, stop_event=None):
             else:
                 print("🎤 PC 기본 사운드에서 녹음 시작.")
 
-            buffer_blocks = []           # 현재 발화 블록 저장
+            buffer_blocks = []  # 현재 발화 블록 저장
             speaking = False
             silence_counter = 0
 
@@ -168,13 +167,9 @@ def main_audio_loop(session_id, socketio, stop_event=None):
                                 translated = translate_text_local(text)
                                 print(f"🌐 번역: {translated}")
 
-                                # DB 저장 (예외 내부 처리)
-                                try:
-                                    insert_transcript(session_id, text, translated)
-                                except Exception as e:
-                                    print(f"⚠️ DB 저장 오류: {e}")
+                                # --- (수정된 로직 시작) ---
 
-                                # socketio 이벤트 전송
+                                # 1. (UI) UI에는 항상 최신 결과를 보낸다 (오류 포함)
                                 try:
                                     kst = timezone(timedelta(hours=9))
                                     now_time = datetime.now(kst).strftime("%H:%M:%S")
@@ -186,6 +181,18 @@ def main_audio_loop(session_id, socketio, stop_event=None):
                                     })
                                 except Exception as e:
                                     print(f"⚠️ socketio 전송 오류: {e}")
+
+                                # 2. (DB) 번역 성공 시에만 DB에 저장한다
+                                error_messages = ["[번역 실패]", "[빈 문자열]"]
+                                if translated and translated not in error_messages:
+                                    try:
+                                        insert_transcript(session_id, text, translated)
+                                    except Exception as e:
+                                        print(f"⚠️ DB 저장 오류: {e}")
+                                else:
+                                    print("🚫 번역 실패/빈 문자열. DB에 저장하지 않습니다.")
+
+                                # --- (수정된 로직 끝) ---
 
                         finally:
                             # 버퍼 초기화
@@ -204,6 +211,12 @@ def main_audio_loop(session_id, socketio, stop_event=None):
 
     except sd.PortAudioError as e:
         print("❌ 오디오 장치 오류:", e)
+        print("--- ⚠️ 오디오 장치 확인 필요 ⚠️ ---")
+        print(f"1. config.py의 INPUT_DEVICE_INDEX ({INPUT_DEVICE_INDEX})가 올바른지 확인하세요.")
+        print("2. '스테레오 믹스'가 활성화되었는지 (또는 마이크가 연결되었는지) 확인하세요.")
+        print("3. 다른 프로그램이 오디오 장치를 독점하고 있지 않은지 확인하세요.")
+        print("---------------------------------")
     except Exception as e:
         print("❌ 알 수 없는 오류:", e)
         traceback.print_exc()
+
