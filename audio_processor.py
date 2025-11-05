@@ -132,10 +132,21 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                             else:
                                 silence_counter = 0
 
-                            # 🔉 노이즈 제거
-                            reduced = nr.reduce_noise(y=data_chunk.flatten(), sr=RATE)
-                            reduced_int16 = np.int16(reduced / np.max(np.abs(reduced)) * 32767)
-                            audio_float32 = reduced_int16.astype(np.float32) / 32768.0
+                                # 🔉 노이즈 제거
+                                reduced = nr.reduce_noise(y=data_chunk.flatten(), sr=RATE)
+
+                                # ⭐️ [수정] 0으로 나누기 오류(RuntimeWarning) 방지
+                                max_val = np.max(np.abs(reduced))
+
+                                if max_val > 0:
+                                    # 신호가 있을 때만 정규화
+                                    normalized_audio = reduced / max_val
+                                else:
+                                    # 완전한 무음인 경우 (max_val == 0)
+                                    normalized_audio = reduced  # (이미 0으로 채워진 배열)
+
+                                reduced_int16 = np.int16(normalized_audio * 32767)
+                                audio_float32 = reduced_int16.astype(np.float32) / 32768.0
 
                             # 🧠 Whisper 인식
                             segments, _ = model.transcribe(
