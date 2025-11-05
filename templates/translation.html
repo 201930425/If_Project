@@ -237,7 +237,7 @@
             summaryWindow.document.close();
 
             // 🚨 서버에 요약 요청 보내기
-            socket.emit("request_summary", { session_id: 'current_session_id' });
+            socket.emit("request_summary", {});
         } else {
             alert("팝업 창이 차단되었습니다. 브라우저 설정을 확인해주세요.");
         }
@@ -265,8 +265,9 @@
 
     socket.on("connect", () => console.log("✅ 서버 연결 성공"));
 
-    // 1. 실시간 번역 로그 수신
-    socket.on("new_translation", data => {
+// 1. 실시간 번역 로그 수신 (🚨 수정된 부분)
+    // 'new_translation' -> 'partial_translation'로 변경
+    socket.on("partial_translation", data => {
         logs.push(data);
         renderLogs(logDiv, logs, true);
     });
@@ -277,7 +278,6 @@
         console.log("✅ 서버로부터 요약 결과를 수신했습니다.");
         updateSummaryWindowContent(summary);
     });
-
 
     function renderLogs(container, dataLogs, scrollToBottom=false){
         container.innerHTML = "";
