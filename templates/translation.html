@@ -5,6 +5,11 @@
 <title>실시간 번역 - 세션 뷰 (별도 팝업 창)</title>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <style>
+    /* ⭐️ CSS 변수 선언: 폰트 크기 (JS에서 동적으로 변경) */
+    :root {
+        --log-font-size: 14px;
+    }
+
     body {
         font-family: 'Segoe UI', Arial, sans-serif;
         margin:0;
@@ -27,7 +32,7 @@
         z-index: 10;
     }
 
-    #toggle-summary, #toggle-theme {
+    #toggle-summary, #toggle-theme, #settings-btn { /* settings-btn 추가 */
         padding:8px 18px;
         cursor:pointer;
         background: var(--button-bg, #1dd1a1);
@@ -38,7 +43,11 @@
         transition: background 0.3s, color 0.3s;
         color: var(--text-color);
     }
-    #toggle-summary:hover, #toggle-theme:hover { background: var(--button-hover-bg, #10ac84); }
+    #settings-btn {
+        padding: 8px 12px; /* 톱니바퀴 버튼은 패딩 조정 */
+        font-size: 1.2em;
+    }
+    #toggle-summary:hover, #toggle-theme:hover, #settings-btn:hover { background: var(--button-hover-bg, #10ac84); }
 
     /* 라이트 모드 변수 정의 */
     body.light-mode {
@@ -68,6 +77,55 @@
         --button-hover-bg: #10ac84;
     }
 
+    /* 설정 메뉴 (모달) 스타일 */
+    #settings-modal {
+        display: none; /* 초기에는 숨김 */
+        position: absolute;
+        top: 60px; /* 버튼 아래에 위치 */
+        right: 15px;
+        width: 250px;
+        padding: 15px;
+        background: var(--bg-color); /* 배경색 */
+        border: 1px solid var(--log-bg);
+        border-radius: 10px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+        z-index: 20;
+    }
+    .setting-item {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 15px;
+    }
+    .setting-item label {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .zoom-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+    }
+    .zoom-controls button {
+        padding: 8px 12px;
+        background: var(--button-bg);
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        color: var(--text-color);
+        font-weight: bold;
+    }
+    .zoom-controls button:hover {
+        background: var(--button-hover-bg);
+    }
+    #zoom-level, #font-size-level {
+        font-size: 1.1em;
+        font-weight: bold;
+        padding: 5px;
+        text-align: center;
+        flex-grow: 1;
+    }
+
     /* 콘텐츠 영역 */
     #content-container {
         flex: 1;
@@ -87,7 +145,7 @@
         transition: background 0.3s;
     }
 
-    /* 로그 항목 스타일 (유지) */
+    /* 로그 항목 스타일 (수정: font-size에 CSS 변수 적용) */
     .log-entry {
         display:flex;
         flex-direction:column;
@@ -105,8 +163,9 @@
         padding:10px 14px;
         border-radius:22px;
         word-wrap:break-word;
-        font-size:14px;
-        transition: background 0.3s, color 0.3s;
+        /* ⭐️ 폰트 크기를 CSS 변수에서 가져옴 */
+        font-size: var(--log-font-size);
+        transition: background 0.3s, color 0.3s, font-size 0.3s;
     }
     .original {
         background: var(--original-bg);
@@ -130,13 +189,32 @@
         display: none;
     }
 
-    /* 팝업 창에 적용할 CSS (JavaScript에서 동적으로 삽입) */
 </style>
 </head>
 <body>
     <div id="button-container">
-        <button id="toggle-theme">🌞 라이트 모드</button>
+        <button id="settings-btn" title="설정">⚙️</button> <button id="toggle-theme">🌞 라이트 모드</button>
         <button id="toggle-summary">요약 새 창 열기</button>
+    </div>
+
+    <div id="settings-modal">
+        <div class="setting-item">
+            <label>화면 확대/축소</label>
+            <div class="zoom-controls">
+                <button id="zoom-out-btn">-</button>
+                <span id="zoom-level">100%</span>
+                <button id="zoom-in-btn">+</button>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <label>번역 로그 폰트 크기</label>
+            <div class="zoom-controls">
+                <button id="font-decrease-btn">A-</button>
+                <span id="font-size-level">기본</span>
+                <button id="font-increase-btn">A+</button>
+            </div>
+        </div>
     </div>
 
     <div id="content-container">
@@ -152,23 +230,35 @@
     const themeBtn = document.getElementById("toggle-theme");
     const logs = [];
 
-    // 팝업 창 객체를 저장할 변수
-    let summaryWindow = null;
+    // ⭐️ [신규] 설정 관련 변수 추가
+    const settingsBtn = document.getElementById("settings-btn");
+    const zoomInBtn = document.getElementById("zoom-in-btn");
+    const zoomOutBtn = document.getElementById("zoom-out-btn");
+    const zoomLevelSpan = document.getElementById("zoom-level");
+    const settingsModal = document.getElementById("settings-modal");
+    const fontDecreaseBtn = document.getElementById("font-decrease-btn");
+    const fontIncreaseBtn = document.getElementById("font-increase-btn");
+    const fontSizeLevelSpan = document.getElementById("font-size-level");
+    // ------------------------------------------------------------------
 
-    // 초기 테마 설정 (로컬 스토리지 확인)
+
+    let summaryWindow = null;
     let currentTheme = localStorage.getItem('theme') || 'dark';
 
-    // ⭐️ [신규] 팝업 창에서 호출할 함수
-    // window 객체에 할당하여 팝업이 접근할 수 있도록 함
+    // ⭐️ [신규] 줌/폰트 크기 관련 변수 초기화
+    let currentZoom = 1.0;
+    const zoomStep = 0.1;
+    let currentFontSize = 14;
+    const fontSizeStep = 2;
+
+    // ⭐️ [신규] 팝업 창에서 호출할 함수 (2개)
     window.requestSpecificSummaryFromPopup = (sessionId) => {
         if (sessionId) {
             console.log(`[Main] 팝업으로부터 세션 요청 받음: ${sessionId}`);
-            // 메인 창의 socket을 사용하여 서버에 이벤트 전송
             socket.emit("request_specific_summary", {
                 session_id: sessionId
             });
 
-            // 로딩 텍스트를 메인 창에서 직접 설정
             if (summaryWindow && !summaryWindow.closed) {
                 const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
                 if (summaryTextDiv) {
@@ -177,6 +267,67 @@
             }
         }
     }
+
+    window.requestRenameSessionFromPopup = (oldId, newId) => {
+        if (oldId && newId) {
+            console.log(`[Main] 팝업으로부터 이름 변경 요청 받음: ${oldId} -> ${newId}`);
+            socket.emit("request_rename_session", {
+                old_id: oldId,
+                new_id: newId
+            });
+
+            if (summaryWindow && !summaryWindow.closed) {
+                const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
+                if (summaryTextDiv) {
+                    summaryTextDiv.textContent = `[이름 변경 중: ${oldId} -> ${newId}...]`;
+                }
+            }
+        }
+    }
+
+    // ⭐️ [신규] 줌/폰트 크기 관련 로직 함수
+    function updateZoom(newZoom) {
+        currentZoom = Math.max(0.5, Math.min(2.0, newZoom)); // 50% ~ 200% 제한
+        document.body.style.zoom = currentZoom;
+        zoomLevelSpan.textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+
+    function updateFontSize(newSize) {
+        currentFontSize = Math.max(10, Math.min(24, newSize)); // 폰트 크기 제한
+        document.documentElement.style.setProperty('--log-font-size', `${currentFontSize}px`);
+
+        let levelText = "기본";
+        if (currentFontSize > 14) {
+             levelText = `+${(currentFontSize - 14) / fontSizeStep}`;
+        } else if (currentFontSize < 14) {
+             levelText = `-${(14 - currentFontSize) / fontSizeStep}`;
+        }
+        fontSizeLevelSpan.textContent = levelText;
+
+        const entries = logDiv.querySelectorAll('.original, .translated');
+        entries.forEach(el => el.style.fontSize = `${currentFontSize}px`);
+    }
+
+    // ⭐️ [신규] 줌/폰트 초기 설정 및 이벤트 리스너
+    updateZoom(currentZoom);
+    updateFontSize(currentFontSize);
+
+    zoomInBtn.addEventListener('click', () => {
+        updateZoom(currentZoom + zoomStep);
+    });
+
+    zoomOutBtn.addEventListener('click', () => {
+        updateZoom(currentZoom - zoomStep);
+    });
+
+    fontIncreaseBtn.addEventListener('click', () => {
+        updateFontSize(currentFontSize + fontSizeStep);
+    });
+
+    fontDecreaseBtn.addEventListener('click', () => {
+        updateFontSize(currentFontSize - fontSizeStep);
+    });
+
 
     function applyTheme(theme) {
         if (theme === 'light') {
@@ -189,14 +340,41 @@
         localStorage.setItem('theme', theme);
         currentTheme = theme;
 
-        // 팝업 창 테마도 동기화 (창이 열려있다면)
+        // 팝업 창 테마 동기화 (창이 열려있다면)
         if (summaryWindow && !summaryWindow.closed) {
-            summaryWindow.document.body.style.background = (theme === 'light' ? '#fff' : '#333');
-            summaryWindow.document.body.style.color = (theme === 'light' ? '#333' : '#fff');
+            const doc = summaryWindow.document;
+            const popupBg = theme === 'light' ? '#f4f4f9' : '#222';
+            const popupText = theme === 'light' ? '#333' : '#fff';
+            const popupHighlight = theme === 'light' ? '#007bff' : '#1dd1a1';
+            const popupBorder = theme === 'light' ? '#ddd' : '#555';
+            const popupInputBg = theme === 'light' ? '#fff' : '#444';
+            const popupSummaryBg = theme === 'light' ? '#f9f9f9' : '#2a2a2a';
+
+            doc.body.style.background = popupBg;
+            doc.body.style.color = popupText;
+
+            const h1 = doc.querySelector('h1');
+            if(h1) h1.style.color = popupHighlight;
+
+            const sessionSelect = doc.getElementById('session-select');
+            if (sessionSelect) {
+                sessionSelect.style.borderColor = popupBorder;
+                sessionSelect.style.background = popupInputBg;
+                sessionSelect.style.color = popupText;
+            }
+            const summaryTextDiv = doc.getElementById('summary-text');
+            if (summaryTextDiv) {
+                summaryTextDiv.style.borderColor = popupBorder;
+                summaryTextDiv.style.background = popupSummaryBg;
+            }
+            const renameBtn = doc.getElementById('rename-btn');
+            if (renameBtn) {
+                renameBtn.style.background = popupHighlight;
+                renameBtn.style.color = popupText;
+            }
         }
     }
 
-    // 페이지 로드 시 테마 적용
     applyTheme(currentTheme);
 
     themeBtn.addEventListener('click', () => {
@@ -204,99 +382,159 @@
         applyTheme(newTheme);
     });
 
+    // ⭐️ [신규] 설정 버튼 이벤트 리스너 (모달 토글)
+    settingsBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        settingsModal.style.display = settingsModal.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // ⭐️ [신규] 모달 외부 클릭 시 모달 닫기
+    document.addEventListener('click', (event) => {
+        if (settingsModal.style.display === 'block' &&
+            !settingsModal.contains(event.target) &&
+            event.target !== settingsBtn) {
+            settingsModal.style.display = 'none';
+        }
+    });
+
     // 팝업 창 열기 및 내용 업데이트 로직
     function openSummaryWindow() {
-        // 이미 창이 열려 있고 닫히지 않았다면 포커스만 이동
         if (summaryWindow && !summaryWindow.closed) {
             summaryWindow.focus();
-            // (수정) 최초 요약 요청을 다시 보냄 (세션 목록 갱신 및 최신 요약)
             socket.emit("request_summary", {});
             return;
         }
 
-        // 새 팝업 창 열기
         const windowFeatures = 'width=500,height=600,scrollbars=yes,resizable=yes,top=100,left=100';
         summaryWindow = window.open('', 'SummaryPopup', windowFeatures);
 
         if (summaryWindow) {
-            // 새 창의 HTML 구조 생성
+             const popupBg = currentTheme === 'light' ? '#f4f4f9' : '#222';
+            const popupText = currentTheme === 'light' ? '#333' : '#fff';
+            const popupHighlight = currentTheme === 'light' ? '#007bff' : '#1dd1a1';
+            const popupBorder = currentTheme === 'light' ? '#ddd' : '#555';
+            const popupInputBg = currentTheme === 'light' ? '#fff' : '#444';
+            const popupSummaryBg = currentTheme === 'light' ? '#f9f9f9' : '#2a2a2a';
+            const renameBtnBg = popupHighlight;
+            const renameBtnColor = popupText;
+            const renameBtnHoverBg = currentTheme === 'light' ? '#0056b3' : '#10ac84';
+
+            // ⭐️ [수정] 팝업 HTML에 버튼 추가 및 스타일링
             const popupHTML = `
                 <!DOCTYPE html>
                 <html lang="ko">
                 <head>
                     <meta charset="UTF-8">
-                    <title>번역 요약</title>
+                    <title>회의 요약</title>
                     <style>
                         body {
                             font-family: 'Segoe UI', Arial, sans-serif;
                             margin: 0;
                             padding: 20px;
-                            background: ${currentTheme === 'light' ? '#fff' : '#333'};
-                            color: ${currentTheme === 'light' ? '#333' : '#fff'};
+                            background: ${popupBg};
+                            color: ${popupText};
                             line-height: 1.6;
                             transition: background 0.3s, color 0.3s;
                         }
                         h1 {
                             text-align: center;
-                            color: ${currentTheme === 'light' ? '#007bff' : '#1dd1a1'};
+                            color: ${popupHighlight};
                             margin-bottom: 20px;
                             font-size: 1.5em;
                         }
-                        /* [신규] 드롭다운 스타일 */
+
                         #session-controls {
                             display: flex;
                             gap: 10px;
                             margin-bottom: 15px;
-                            align-items: center;
+                            align-items: stretch;
                         }
                         #session-controls label {
                             font-weight: bold;
+                            padding: 8px 0;
                         }
                         #session-select {
                             flex: 1;
                             padding: 8px;
                             border-radius: 5px;
-                            border: 1px solid ${currentTheme === 'light' ? '#ddd' : '#555'};
-                            background: ${currentTheme === 'light' ? '#fff' : '#444'};
-                            color: ${currentTheme === 'light' ? '#333' : '#fff'};
+                            border: 1px solid ${popupBorder};
+                            background: ${popupInputBg};
+                            color: ${popupText};
                             font-size: 0.9em;
                         }
+
+                        /* ⭐️ 이름 변경 버튼 스타일 */
+                        #rename-btn {
+                            padding: 8px 12px;
+                            border-radius: 5px;
+                            border: none;
+                            background: ${renameBtnBg};
+                            color: ${renameBtnColor};
+                            cursor: pointer;
+                            font-weight: bold;
+                            font-size: 0.9em;
+                            transition: background 0.3s;
+                        }
+                        #rename-btn:hover {
+                            background: ${renameBtnHoverBg};
+                        }
+
                         #summary-text {
                             white-space: pre-wrap;
-                            border: 1px solid ${currentTheme === 'light' ? '#ddd' : '#555'};
+                            border: 1px solid ${popupBorder};
                             padding: 15px;
                             border-radius: 8px;
-                            background: ${currentTheme === 'light' ? '#f9f9f9' : '#2a2a2a'};
+                            background: ${popupSummaryBg};
                             min-height: 300px;
                         }
                     </style>
                 </head>
                 <body>
-                    <h1>번역 요약</h1>
+                    <h1>회의 요약</h1>
 
                     <div id="session-controls">
-                        <label for="session-select">세션 선택:</label>
+                        <label for="session-select">세션:</label>
                         <select id="session-select">
                             <option value="">[로드 중...]</option>
                         </select>
+                        <button id="rename-btn">이름 변경</button>
                     </div>
 
                     <div id="summary-text">[요약 생성 중...]</div>
 
                     <script>
-                        // ⭐️ [수정] 팝업창 내부 스크립트
                         const sessionSelect = document.getElementById('session-select');
+                        const renameBtn = document.getElementById('rename-btn');
 
-                        // 2. 드롭다운 변경 시, 메인 창(opener)의 함수 호출
+                        // 1. 드롭다운 변경 리스너
                         sessionSelect.addEventListener('change', () => {
                             const selectedSessionId = sessionSelect.value;
-
-                            // ⭐️ [수정] window.opener.socket.emit -> window.opener.requestSpecificSummaryFromPopup 호출
                             if (selectedSessionId && window.opener && typeof window.opener.requestSpecificSummaryFromPopup === 'function') {
-                                // 메인 창(opener)에 정의된 함수 호출
                                 window.opener.requestSpecificSummaryFromPopup(selectedSessionId);
                             } else {
                                 console.error("Opener 또는 요약 요청 함수를 찾을 수 없습니다.");
+                                document.getElementById('summary-text').textContent = '[오류: 메인 창과 연결 실패]';
+                            }
+                        });
+
+                        // 2. ⭐️ 이름 변경 버튼 리스너
+                        renameBtn.addEventListener('click', () => {
+                            const oldId = sessionSelect.value;
+                            if (!oldId || oldId.startsWith('[')) { // 로드 중이거나 선택되지 않은 경우 제외
+                                alert("이름을 변경할 세션이 선택되지 않았습니다.");
+                                return;
+                            }
+
+                            const newId = prompt("새로운 세션 이름을 입력하세요:", oldId);
+
+                            if (newId === null || newId.trim() === "" || newId.trim() === oldId) {
+                                return;
+                            }
+
+                            if (window.opener && typeof window.opener.requestRenameSessionFromPopup === 'function') {
+                                window.opener.requestRenameSessionFromPopup(oldId, newId.trim());
+                            } else {
+                                console.error("Opener 또는 이름 변경 요청 함수를 찾을 수 없습니다.");
                                 document.getElementById('summary-text').textContent = '[오류: 메인 창과 연결 실패]';
                             }
                         });
@@ -305,11 +543,8 @@
                 </html>
             `;
 
-            // 새 창에 내용 쓰기
             summaryWindow.document.write(popupHTML);
             summaryWindow.document.close();
-
-            // 🚨 서버에 "최초" 요약 데이터(모든 세션 + 최신 요약) 요청
             socket.emit("request_summary", {});
 
         } else {
@@ -319,7 +554,6 @@
 
 
     toggleBtn.addEventListener("click", () => {
-        // 버튼 클릭 시 팝업 창을 열고 "최초" 요약 요청
         openSummaryWindow();
     });
 
@@ -329,17 +563,16 @@
 
     socket.on("connect", () => console.log("✅ 서버 연결 성공"));
 
-    // 1. 실시간 번역 로그 수신 (수정됨)
+    // 1. 실시간 번역 로그 수신
     socket.on("partial_translation", data => {
         logs.push(data);
         renderLogs(logDiv, logs, true);
     });
 
-    // 2. [수정] 서버에서 요약 데이터 수신 (최초 또는 특정)
+    // 2. 서버에서 요약 데이터 수신
     socket.on("summary_data_updated", data => {
         console.log("✅ 서버로부터 요약 데이터를 수신했습니다.", data);
 
-        // 팝업 창이 없거나 닫혔으면 아무것도 안 함
         if (!summaryWindow || summaryWindow.closed) {
             return;
         }
@@ -350,13 +583,11 @@
             summaryTextDiv.textContent = data.summary;
         }
 
-        // 2. (최초 로드 시 또는 필요시) 세션 목록(드롭다운) 채우기
+        // 2. 세션 목록(드롭다운) 채우기
         if (data.all_sessions && data.all_sessions.length > 0) {
             const sessionSelect = summaryWindow.document.getElementById('session-select');
             if (sessionSelect) {
-                // 현재 선택된 값을 임시 저장
-                const currentVal = sessionSelect.value;
-                sessionSelect.innerHTML = ""; // 기존 옵션 비우기
+                sessionSelect.innerHTML = "";
 
                 data.all_sessions.forEach(sessionId => {
                     const option = summaryWindow.document.createElement('option');
@@ -364,14 +595,10 @@
                     option.textContent = sessionId;
                     sessionSelect.appendChild(option);
                 });
-
-                // 3. 현재 세션 ID로 드롭다운 선택 설정
-                // (만약 data.current_session_id가 있으면 그것을, 아니면 기존 값을 유지)
-                sessionSelect.value = data.current_session_id || currentVal;
             }
         }
 
-        // 3. (특정 세션 로드 시) 현재 세션 ID로 드롭다운 선택 설정
+        // 3. 현재 세션 ID로 드롭다운 선택 설정
         if (data.current_session_id) {
             const sessionSelect = summaryWindow.document.getElementById('session-select');
             if (sessionSelect) {
@@ -394,10 +621,12 @@
             const originalDiv = document.createElement("div");
             originalDiv.classList.add("original");
             originalDiv.textContent = data.original;
+            originalDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 동적 폰트 크기 적용
 
             const translatedDiv = document.createElement("div");
             translatedDiv.classList.add("translated");
             translatedDiv.textContent = data.translated;
+            translatedDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 동적 폰트 크기 적용
 
             entry.appendChild(timeDiv);
             entry.appendChild(originalDiv);
