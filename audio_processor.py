@@ -11,16 +11,9 @@ import noisereduce as nr
 from db_handler import insert_transcript
 from config import (
     MODEL_TYPE, LANGUAGE, TARGET_LANG,
-    BEAM_SIZE, INPUT_DEVICE_INDEX,
-    VAD_MODE, FRAME_DURATION_MS
+    BEAM_SIZE, INPUT_DEVICE_INDEX, FRAME_SIZE,
+    VAD_MODE, FRAME_DURATION_MS, RATE, CHUNK_DURATION_SEC, CHUNK_SIZE
 )
-
-# --- 설정 ---
-RATE = 16000
-FRAME_DURATION = FRAME_DURATION_MS
-FRAME_SIZE = int(RATE * FRAME_DURATION / 1000)
-CHUNK_DURATION_SEC = 3.0  # ✅ 3초 단위로 변경
-CHUNK_SIZE = int(RATE * CHUNK_DURATION_SEC)
 
 print(f"🎧 Whisper 모델({MODEL_TYPE}) 로드 중...")
 model = WhisperModel(MODEL_TYPE, device="cpu", compute_type="int8")

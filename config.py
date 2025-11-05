@@ -1,5 +1,5 @@
 # ============================================
-# ⚙️ Whisper + Flask 실시간 번역 설정파일
+# ⚙️ Whisper + Streaming + Flask 실시간 번역 설정파일
 # ============================================
 
 # --- Whisper 모델 설정 ---
@@ -43,3 +43,10 @@ FRAME_DURATION_MS = 30
 # 말이 끝났다고 판단할 무음 지속 시간(ms)
 # 너무 길면 문장 완성이 늦어지고, 너무 짧으면 끊김 발생
 SILENCE_TIMEOUT_MS = 700
+
+# --- 오디오 스트리밍 설정 ---
+RATE = 16000
+FRAME_DURATION = FRAME_DURATION_MS
+FRAME_SIZE = int(RATE * FRAME_DURATION / 1000)
+CHUNK_DURATION_SEC = 3.0  # ✅ 청크 3초 단위로 변경
+CHUNK_SIZE = int(RATE * CHUNK_DURATION_SEC)
