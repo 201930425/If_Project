@@ -8,7 +8,6 @@ from deep_translator import GoogleTranslator
 from datetime import datetime, timezone, timedelta
 import traceback
 import noisereduce as nr
-from scipy.io.wavfile import write
 from db_handler import insert_transcript
 from config import (
     MODEL_TYPE, LANGUAGE, TARGET_LANG,
@@ -20,7 +19,7 @@ from config import (
 RATE = 16000
 FRAME_DURATION = FRAME_DURATION_MS
 FRAME_SIZE = int(RATE * FRAME_DURATION / 1000)
-CHUNK_DURATION_SEC = 1.0
+CHUNK_DURATION_SEC = 3.0  # ✅ 3초 단위로 변경
 CHUNK_SIZE = int(RATE * CHUNK_DURATION_SEC)
 
 print(f"🎧 Whisper 모델({MODEL_TYPE}) 로드 중...")
@@ -38,9 +37,9 @@ def translate_text_local(text, target_lang=TARGET_LANG):
         print(f"⚠️ 번역 실패: {e}")
         return ""
 
-# --- 문장 완성 감지 ---
+# --- 문장 완성 감지 (구두점 + 무음 기반) ---
 def is_sentence_complete(text):
-    """문장이 끝났는지 판별 (구두점/종결어미 기반)"""
+    """문장이 끝났는지 판별"""
     if not text.strip():
         return False
     text = text.strip()
@@ -63,15 +62,6 @@ def is_speech_chunk(data_chunk, rate=RATE, frame_ms=30):
     speech_frames = 0
     frame_count = 0
 
-    rms = np.sqrt(np.mean(data_chunk.astype(np.float32) ** 2))
-    # print(f"🎚️ 입력 RMS 레벨: {rms:.5f}")
-
-    # if rms < 0.002:
-    #     print("🔇 입력 너무 작음 — 무음 구간으로 판단\n")
-    #     return False
-    # elif rms > 0.1:
-    #     # print("⚠️ 잡음 과다 감지 — VAD 감도 강화\n")
-
     for i in range(0, len(bytes_data), frame_length * 2):
         frame = bytes_data[i:i + frame_length * 2]
         if len(frame) < frame_length * 2:
@@ -83,7 +73,6 @@ def is_speech_chunk(data_chunk, rate=RATE, frame_ms=30):
         except webrtcvad.Error:
             continue
 
-    # print(f"🧩 VAD 검사: {speech_frames}/{frame_count} 프레임이 음성으로 판정됨")
     return speech_frames > 0
 
 # --- 메인 루프 ---
@@ -92,7 +81,9 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
 
     buffer = np.zeros((0, 1), dtype=np.int16)
     sentence_buffer = ""
-    last_text = ""
+    previous_text = ""
+    last_emit_time = time.time()
+    silence_counter = 0
 
     try:
         with sd.InputStream(
@@ -119,14 +110,39 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                         buffer = buffer[CHUNK_SIZE:]
 
                         try:
+                            # 🔉 음성 감지
                             if not is_speech_chunk(data_chunk, RATE):
-                                continue
+                                silence_counter += 1
+                                if silence_counter >= 2 and sentence_buffer.strip():
+                                    # ✅ 1.5초 이상 무음 → 문장 완료로 간주
+                                    kst = timezone(timedelta(hours=9))
+                                    now_time = datetime.now(kst).strftime("%H:%M:%S")
 
+                                    translated = translate_text_local(sentence_buffer)
+                                    print(f"✅ 완성 문장: {sentence_buffer}")
+                                    print(f"🌐 번역 결과: {translated}\n")
+
+                                    socketio.emit('partial_translation', {
+                                        'original': sentence_buffer.strip(),
+                                        'translated': translated,
+                                        'time': now_time,
+                                        'session_id': session_id
+                                    })
+
+                                    insert_transcript(session_id, sentence_buffer.strip(), translated)
+                                    sentence_buffer = ""
+                                    previous_text = ""
+                                    silence_counter = 0
+                                continue
+                            else:
+                                silence_counter = 0
+
+                            # 🔉 노이즈 제거
                             reduced = nr.reduce_noise(y=data_chunk.flatten(), sr=RATE)
                             reduced_int16 = np.int16(reduced / np.max(np.abs(reduced)) * 32767)
                             audio_float32 = reduced_int16.astype(np.float32) / 32768.0
 
-                            # Whisper 인식
+                            # 🧠 Whisper 인식
                             segments, _ = model.transcribe(
                                 audio_float32,
                                 language=LANGUAGE,
@@ -134,12 +150,15 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                             )
                             partial_text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
 
-                            if partial_text and partial_text != last_text:
-                                last_text = partial_text
-                                sentence_buffer += " " + partial_text.strip()
-                                print(f"🧩 부분 인식: {partial_text}")
+                            if partial_text and partial_text != previous_text:
+                                # ✅ 새로 추가된 부분만 추출
+                                new_part = partial_text.replace(previous_text, "").strip()
+                                if new_part:
+                                    sentence_buffer += " " + new_part
+                                    previous_text = partial_text
+                                    print(f"🧩 부분 인식 누적: {new_part}")
 
-                                # 문장 완성 감지
+                                # 종결어미 기반 문장 완성 감지
                                 if is_sentence_complete(sentence_buffer):
                                     kst = timezone(timedelta(hours=9))
                                     now_time = datetime.now(kst).strftime("%H:%M:%S")
@@ -156,7 +175,8 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                     })
 
                                     insert_transcript(session_id, sentence_buffer.strip(), translated)
-                                    sentence_buffer = ""  # 문장 완료 후 초기화
+                                    sentence_buffer = ""
+                                    previous_text = ""
 
                         except Exception as e:
                             print(f"⚠️ 스트리밍 처리 오류: {e}")
