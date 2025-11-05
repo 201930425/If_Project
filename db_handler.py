@@ -100,3 +100,25 @@ def get_latest_session_id():
         if conn:
             conn.close()
 
+def get_all_session_ids():
+    """DB에서 모든 고유한 session_id 목록을 (최신순으로) 가져옵니다."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+        cursor = conn.cursor()
+        # 1. 고유한 ID를 2. 타임스탬프 기준으로 3. 내림차순 정렬
+        query = """
+        SELECT DISTINCT session_id 
+        FROM transcripts 
+        ORDER BY timestamp DESC
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        # [('20251105_115000',), ('20251105_100000',)] -> ['20251105_115000', '20251105_100000']
+        return [row[0] for row in rows]
+    except Exception as e:
+        print(f"⚠️ 모든 세션 ID 조회 실패: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()

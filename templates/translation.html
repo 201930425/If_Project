@@ -25,26 +25,7 @@
         align-self: flex-end;
         margin-bottom: 15px;
         z-index: 10;
-        align-items: center; /* 새로 추가된 셀렉트 박스와 높이 맞추기 */
     }
-
-    #language-select {
-        padding: 8px 10px;
-        cursor: pointer;
-        background: var(--button-bg, #1dd1a1);
-        border: none;
-        border-radius: 20px;
-        font-weight: bold;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        transition: background 0.3s, color 0.3s;
-        color: var(--text-color);
-        /* 폰트 크기를 버튼과 유사하게 조정 */
-        font-size: 14px;
-        appearance: none; /* 기본 셀렉트 스타일 제거 */
-        -webkit-appearance: none;
-        -moz-appearance: none;
-    }
-    #language-select:hover { background: var(--button-hover-bg, #10ac84); }
 
     #toggle-summary, #toggle-theme {
         padding:8px 18px;
@@ -149,15 +130,11 @@
         display: none;
     }
 
+    /* 팝업 창에 적용할 CSS (JavaScript에서 동적으로 삽입) */
 </style>
 </head>
 <body>
     <div id="button-container">
-        <select id="language-select">
-            <option value="en">🇺🇸 영어 번역</option>
-            <option value="ja">🇯🇵 일본어 번역</option>
-        </select>
-
         <button id="toggle-theme">🌞 라이트 모드</button>
         <button id="toggle-summary">요약 새 창 열기</button>
     </div>
@@ -173,18 +150,33 @@
     const logDiv = document.getElementById("log");
     const toggleBtn = document.getElementById("toggle-summary");
     const themeBtn = document.getElementById("toggle-theme");
-    // 💡 언어 셀렉트 요소 추가
-    const languageSelect = document.getElementById("language-select");
     const logs = [];
 
     // 팝업 창 객체를 저장할 변수
     let summaryWindow = null;
 
-    // 💡 초기 테마 및 언어 설정 (로컬 스토리지 확인)
+    // 초기 테마 설정 (로컬 스토리지 확인)
     let currentTheme = localStorage.getItem('theme') || 'dark';
-    // 기본 번역 언어를 'en'으로 설정
-    let currentLanguage = localStorage.getItem('translation_lang') || 'en';
 
+    // ⭐️ [신규] 팝업 창에서 호출할 함수
+    // window 객체에 할당하여 팝업이 접근할 수 있도록 함
+    window.requestSpecificSummaryFromPopup = (sessionId) => {
+        if (sessionId) {
+            console.log(`[Main] 팝업으로부터 세션 요청 받음: ${sessionId}`);
+            // 메인 창의 socket을 사용하여 서버에 이벤트 전송
+            socket.emit("request_specific_summary", {
+                session_id: sessionId
+            });
+
+            // 로딩 텍스트를 메인 창에서 직접 설정
+            if (summaryWindow && !summaryWindow.closed) {
+                const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
+                if (summaryTextDiv) {
+                    summaryTextDiv.textContent = '[선택한 세션 요약 로드 중...]';
+                }
+            }
+        }
+    }
 
     function applyTheme(theme) {
         if (theme === 'light') {
@@ -196,62 +188,44 @@
         }
         localStorage.setItem('theme', theme);
         currentTheme = theme;
+
+        // 팝업 창 테마도 동기화 (창이 열려있다면)
+        if (summaryWindow && !summaryWindow.closed) {
+            summaryWindow.document.body.style.background = (theme === 'light' ? '#fff' : '#333');
+            summaryWindow.document.body.style.color = (theme === 'light' ? '#333' : '#fff');
+        }
     }
 
-    // 💡 언어 적용 함수
-    function applyLanguage(lang) {
-        localStorage.setItem('translation_lang', lang);
-        currentLanguage = lang;
-        languageSelect.value = lang; // UI에 반영
-
-        // 🚨 중요: 언어가 변경되면 서버에 새 언어로 번역을 요청하도록 신호를 보냅니다.
-        // 이 예시에서는 "change_translation_target"이라는 이벤트를 사용한다고 가정합니다.
-        // 서버 측에서 이 이벤트를 처리하여 실시간 번역 대상 언어를 변경해야 합니다.
-        socket.emit("change_translation_target", { target_lang: lang });
-
-        // 로그를 비워서 새로운 언어의 번역만 표시하도록 준비합니다.
-        logs.length = 0;
-        renderLogs(logDiv, logs, false);
-
-        console.log(`✅ 번역 대상 언어 변경 요청: ${lang}`);
-    }
-
-
-    // 페이지 로드 시 테마 및 언어 적용
+    // 페이지 로드 시 테마 적용
     applyTheme(currentTheme);
-    applyLanguage(currentLanguage); // 언어 상태 적용 및 서버에 요청
 
-    // 💡 테마 버튼 이벤트 리스너
     themeBtn.addEventListener('click', () => {
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         applyTheme(newTheme);
     });
 
-    // 💡 언어 셀렉트 박스 이벤트 리스너
-    languageSelect.addEventListener('change', (e) => {
-        applyLanguage(e.target.value);
-    });
-
-
     // 팝업 창 열기 및 내용 업데이트 로직
-    function openSummaryWindow(summaryText = "[요약 생성 중...]") {
+    function openSummaryWindow() {
+        // 이미 창이 열려 있고 닫히지 않았다면 포커스만 이동
         if (summaryWindow && !summaryWindow.closed) {
             summaryWindow.focus();
-            updateSummaryWindowContent(summaryText);
+            // (수정) 최초 요약 요청을 다시 보냄 (세션 목록 갱신 및 최신 요약)
+            socket.emit("request_summary", {});
             return;
         }
 
+        // 새 팝업 창 열기
         const windowFeatures = 'width=500,height=600,scrollbars=yes,resizable=yes,top=100,left=100';
         summaryWindow = window.open('', 'SummaryPopup', windowFeatures);
 
         if (summaryWindow) {
-            // 새 창의 HTML 구조 생성 (테마 변수 유지)
+            // 새 창의 HTML 구조 생성
             const popupHTML = `
                 <!DOCTYPE html>
                 <html lang="ko">
                 <head>
                     <meta charset="UTF-8">
-                    <title>회의 요약</title>
+                    <title>번역 요약</title>
                     <style>
                         body {
                             font-family: 'Segoe UI', Arial, sans-serif;
@@ -268,45 +242,85 @@
                             margin-bottom: 20px;
                             font-size: 1.5em;
                         }
+                        /* [신규] 드롭다운 스타일 */
+                        #session-controls {
+                            display: flex;
+                            gap: 10px;
+                            margin-bottom: 15px;
+                            align-items: center;
+                        }
+                        #session-controls label {
+                            font-weight: bold;
+                        }
+                        #session-select {
+                            flex: 1;
+                            padding: 8px;
+                            border-radius: 5px;
+                            border: 1px solid ${currentTheme === 'light' ? '#ddd' : '#555'};
+                            background: ${currentTheme === 'light' ? '#fff' : '#444'};
+                            color: ${currentTheme === 'light' ? '#333' : '#fff'};
+                            font-size: 0.9em;
+                        }
                         #summary-text {
                             white-space: pre-wrap;
                             border: 1px solid ${currentTheme === 'light' ? '#ddd' : '#555'};
                             padding: 15px;
                             border-radius: 8px;
                             background: ${currentTheme === 'light' ? '#f9f9f9' : '#2a2a2a'};
+                            min-height: 300px;
                         }
                     </style>
                 </head>
                 <body>
-                    <h1>회의 요약</h1>
-                    <div id="summary-text">${summaryText}</div>
+                    <h1>번역 요약</h1>
+
+                    <div id="session-controls">
+                        <label for="session-select">세션 선택:</label>
+                        <select id="session-select">
+                            <option value="">[로드 중...]</option>
+                        </select>
+                    </div>
+
+                    <div id="summary-text">[요약 생성 중...]</div>
+
+                    <script>
+                        // ⭐️ [수정] 팝업창 내부 스크립트
+                        const sessionSelect = document.getElementById('session-select');
+
+                        // 2. 드롭다운 변경 시, 메인 창(opener)의 함수 호출
+                        sessionSelect.addEventListener('change', () => {
+                            const selectedSessionId = sessionSelect.value;
+
+                            // ⭐️ [수정] window.opener.socket.emit -> window.opener.requestSpecificSummaryFromPopup 호출
+                            if (selectedSessionId && window.opener && typeof window.opener.requestSpecificSummaryFromPopup === 'function') {
+                                // 메인 창(opener)에 정의된 함수 호출
+                                window.opener.requestSpecificSummaryFromPopup(selectedSessionId);
+                            } else {
+                                console.error("Opener 또는 요약 요청 함수를 찾을 수 없습니다.");
+                                document.getElementById('summary-text').textContent = '[오류: 메인 창과 연결 실패]';
+                            }
+                        });
+                    <\/script>
                 </body>
                 </html>
             `;
 
+            // 새 창에 내용 쓰기
             summaryWindow.document.write(popupHTML);
             summaryWindow.document.close();
 
-            // 🚨 서버에 요약 요청 보내기 (세션 ID 대신 현재 번역 언어도 함께 보낼 수 있습니다)
-            socket.emit("request_summary", { target_lang: currentLanguage });
+            // 🚨 서버에 "최초" 요약 데이터(모든 세션 + 최신 요약) 요청
+            socket.emit("request_summary", {});
+
         } else {
             alert("팝업 창이 차단되었습니다. 브라우저 설정을 확인해주세요.");
         }
     }
 
-    // 새 창의 내용만 업데이트하는 함수
-    function updateSummaryWindowContent(summary) {
-        if (summaryWindow && !summaryWindow.closed) {
-            const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-            if (summaryTextDiv) {
-                summaryTextDiv.textContent = summary;
-            }
-        }
-    }
-
 
     toggleBtn.addEventListener("click", () => {
-        openSummaryWindow("[요약 생성 중...]");
+        // 버튼 클릭 시 팝업 창을 열고 "최초" 요약 요청
+        openSummaryWindow();
     });
 
     // ----------------------------------------------------
@@ -315,17 +329,55 @@
 
     socket.on("connect", () => console.log("✅ 서버 연결 성공"));
 
-    // 1. 실시간 번역 로그 수신
-    // 'new_translation' 대신 'partial_translation'으로 변경된 것을 유지합니다.
+    // 1. 실시간 번역 로그 수신 (수정됨)
     socket.on("partial_translation", data => {
         logs.push(data);
         renderLogs(logDiv, logs, true);
     });
 
-    // 2. 서버에서 요약 결과 수신
-    socket.on("summary_result", summary => {
-        console.log("✅ 서버로부터 요약 결과를 수신했습니다.");
-        updateSummaryWindowContent(summary);
+    // 2. [수정] 서버에서 요약 데이터 수신 (최초 또는 특정)
+    socket.on("summary_data_updated", data => {
+        console.log("✅ 서버로부터 요약 데이터를 수신했습니다.", data);
+
+        // 팝업 창이 없거나 닫혔으면 아무것도 안 함
+        if (!summaryWindow || summaryWindow.closed) {
+            return;
+        }
+
+        // 1. 요약 텍스트 업데이트
+        const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
+        if (summaryTextDiv) {
+            summaryTextDiv.textContent = data.summary;
+        }
+
+        // 2. (최초 로드 시 또는 필요시) 세션 목록(드롭다운) 채우기
+        if (data.all_sessions && data.all_sessions.length > 0) {
+            const sessionSelect = summaryWindow.document.getElementById('session-select');
+            if (sessionSelect) {
+                // 현재 선택된 값을 임시 저장
+                const currentVal = sessionSelect.value;
+                sessionSelect.innerHTML = ""; // 기존 옵션 비우기
+
+                data.all_sessions.forEach(sessionId => {
+                    const option = summaryWindow.document.createElement('option');
+                    option.value = sessionId;
+                    option.textContent = sessionId;
+                    sessionSelect.appendChild(option);
+                });
+
+                // 3. 현재 세션 ID로 드롭다운 선택 설정
+                // (만약 data.current_session_id가 있으면 그것을, 아니면 기존 값을 유지)
+                sessionSelect.value = data.current_session_id || currentVal;
+            }
+        }
+
+        // 3. (특정 세션 로드 시) 현재 세션 ID로 드롭다운 선택 설정
+        if (data.current_session_id) {
+            const sessionSelect = summaryWindow.document.getElementById('session-select');
+            if (sessionSelect) {
+                sessionSelect.value = data.current_session_id;
+            }
+        }
     });
 
 
