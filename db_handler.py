@@ -122,3 +122,37 @@ def get_all_session_ids():
     finally:
         if conn:
             conn.close()
+
+
+def rename_session(old_id, new_id):
+    """DB에서 'old_id'를 'new_id'로 변경합니다."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+        cursor = conn.cursor()
+
+        # 1. (선택적) 혹시 모를 중복 방지: new_id가 이미 있는지 확인
+        cursor.execute("SELECT 1 FROM transcripts WHERE session_id = ? LIMIT 1", (new_id,))
+        if cursor.fetchone():
+            print(f"⚠️ 이름 변경 실패: '{new_id}'가 이미 존재합니다.")
+            return False
+
+        # 2. 이름 변경 실행
+        query = "UPDATE transcripts SET session_id = ? WHERE session_id = ?"
+        cursor.execute(query, (new_id, old_id))
+        conn.commit()
+
+        # 3. 변경 사항 확인
+        if cursor.rowcount > 0:
+            print(f"✅ DB 세션 이름 변경 완료: '{old_id}' -> '{new_id}' ({cursor.rowcount}개 레코드)")
+            return True
+        else:
+            print(f"⚠️ 이름 변경 실패: '{old_id}'를 찾을 수 없습니다.")
+            return False
+
+    except Exception as e:
+        print(f"⚠️ 세션 이름 변경 중 DB 오류: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()

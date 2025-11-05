@@ -139,7 +139,12 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                             segments, _ = model.transcribe(
                                 audio_float32,
                                 language=LANGUAGE,
-                                beam_size=BEAM_SIZE
+                                beam_size=BEAM_SIZE,
+                                # --- ⭐️ 환각(쓰레기값) 억제 옵션 추가 ---
+                                vad_filter=True,  # VAD 필터를 사용해 음성이 없는 세그먼트를 제거
+                                no_speech_threshold=0.6,  # 이 값 이하의 '음성 확률'은 무시
+                                log_prob_threshold=-1.0,  # 신뢰도가 너무 낮은 토큰(단어)을 억제
+                                condition_on_previous_text=False  # 이전 텍스트에 덜 의존하여 반복 환각을 줄임
                             )
                             partial_text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
 

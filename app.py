@@ -4,7 +4,7 @@ import threading
 from datetime import datetime
 from config import HOST, PORT
 # ⬇️ get_all_session_ids 임포트 추가
-from db_handler import init_db, get_latest_session_id, fetch_data_from_db, get_all_session_ids
+from db_handler import init_db, get_latest_session_id, fetch_data_from_db, get_all_session_ids, rename_session
 from audio_processor import main_audio_streaming
 from summary_handler import load_kobart_model, summarize_text
 
@@ -105,6 +105,59 @@ def handle_specific_summary_request(data):
             'summary': f"[요약 생성 실패: {e}]"
         })
 
+
+@socketio.on("request_rename_session")
+def handle_rename_session(data):
+    """클라이언트의 세션 이름 변경 요청을 처리합니다."""
+    old_id = data.get('old_id')
+    new_id = data.get('new_id')
+
+    if not old_id or not new_id:
+        print("⚠️ 이름 변경 요청 오류: old_id 또는 new_id가 없습니다.")
+        return
+
+    if old_id == new_id:
+        print("⚠️ 이름 변경 무시: 이름이 동일합니다.")
+        return
+
+    print(f"🔄 (이름 변경) 요청 수신: '{old_id}' -> '{new_id}'")
+
+    try:
+        success = rename_session(old_id, new_id)
+
+        if success:
+            # ⭐️ 성공 시, 갱신된 세션 목록과 '새 이름'으로 된 요약을 전송
+            all_sessions = get_all_session_ids()
+            full_text = fetch_data_from_db(new_id)  # 새 ID로 텍스트 조회
+            summary = "[이름 변경됨. 요약 로드 중...]"
+
+            if not full_text:
+                summary = "[세션 텍스트를 찾을 수 없습니다]"
+            else:
+                summary = summarize_text(full_text)
+
+            print("✅ 이름 변경 성공. 클라이언트에 갱신된 데이터 전송.")
+            socketio.emit("summary_data_updated", {
+                'all_sessions': all_sessions,
+                'current_session_id': new_id,  # 새 ID를 선택하도록 함
+                'summary': summary
+            })
+        else:
+            # ⭐️ 실패 시, (일단은) 클라이언트에 현재 상태를 다시 보냄 (UI가 꼬이지 않도록)
+            print("❌ 이름 변경 실패. 기존 데이터로 클라이언트 동기화 시도.")
+            all_sessions = get_all_session_ids()
+            full_text = fetch_data_from_db(old_id)  # 이전 ID로 텍스트 조회
+            summary = summarize_text(full_text)
+
+            socketio.emit("summary_data_updated", {
+                'all_sessions': all_sessions,
+                'current_session_id': old_id,
+                'summary': summary
+            })
+            # (추가) 실패 알림을 보낼 수도 있음
+            # socketio.emit("rename_failed", {"message": "이름 변경에 실패했습니다. (이름 중복 등)"})
+    except Exception as e:
+        print(f"⚠️ 이름 변경 처리 중 심각한 오류: {e}")
 
 # --- Whisper 자동 세션 함수 ---
 # ... (start_auto_session, init_summary_model, if __name__ == "__main__": 블록은 그대로 둠) ...
