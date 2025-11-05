@@ -17,22 +17,23 @@
         display:flex;
         flex-direction:column;
         height:100vh;
-        /* 기본: 다크 모드 */
         background: var(--bg-color, #222);
         color: var(--text-color, #fff);
         transition: background 0.3s, color 0.3s;
     }
 
-    /* 버튼 컨테이너: 버튼들을 오른쪽 상단에 배치 */
+    /* 버튼 컨테이너 */
     #button-container {
         display: flex;
         gap: 10px;
         align-self: flex-end;
         margin-bottom: 15px;
         z-index: 10;
+        align-items: center; /* ⭐️ 버튼 정렬 */
     }
 
-    #toggle-summary, #toggle-theme, #settings-btn { /* settings-btn 추가 */
+    /* ⭐️ [병합] 모든 버튼 스타일 */
+    #toggle-summary, #toggle-theme, #settings-btn, .lang-btn {
         padding:8px 18px;
         cursor:pointer;
         background: var(--button-bg, #1dd1a1);
@@ -40,16 +41,27 @@
         border-radius:20px;
         font-weight:bold;
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        transition: background 0.3s, color 0.3s;
+        transition: background 0.3s, color 0.3s, transform 0.2s;
         color: var(--text-color);
     }
     #settings-btn {
-        padding: 8px 12px; /* 톱니바퀴 버튼은 패딩 조정 */
+        padding: 8px 12px;
         font-size: 1.2em;
     }
-    #toggle-summary:hover, #toggle-theme:hover, #settings-btn:hover { background: var(--button-hover-bg, #10ac84); }
+    #toggle-summary:hover, #toggle-theme:hover, #settings-btn:hover, .lang-btn:hover {
+        background: var(--button-hover-bg, #10ac84);
+        transform: scale(1.05); /* ⭐️ 호버 시 확대 효과 */
+    }
 
-    /* 라이트 모드 변수 정의 */
+    /* ⭐️ [신규] 언어 버튼 활성화 스타일 */
+    .lang-btn.active {
+        background: #ffcc00;
+        color: #000;
+        transform: scale(1.05);
+    }
+
+
+    /* 라이트 모드 */
     body.light-mode {
         --bg-color: #f4f4f9;
         --text-color: #333;
@@ -63,7 +75,7 @@
         --button-hover-bg: #0056b3;
     }
 
-    /* 다크 모드 변수 정의 (기존 값) */
+    /* 다크 모드 */
     body {
         --bg-color: #222;
         --text-color: #fff;
@@ -79,13 +91,13 @@
 
     /* 설정 메뉴 (모달) 스타일 */
     #settings-modal {
-        display: none; /* 초기에는 숨김 */
+        display: none;
         position: absolute;
-        top: 60px; /* 버튼 아래에 위치 */
+        top: 60px;
         right: 15px;
         width: 250px;
         padding: 15px;
-        background: var(--bg-color); /* 배경색 */
+        background: var(--bg-color);
         border: 1px solid var(--log-bg);
         border-radius: 10px;
         box-shadow: 0 8px 16px rgba(0,0,0,0.4);
@@ -145,7 +157,7 @@
         transition: background 0.3s;
     }
 
-    /* 로그 항목 스타일 (수정: font-size에 CSS 변수 적용) */
+    /* 로그 항목 스타일 (폰트 크기 변수 적용) */
     .log-entry {
         display:flex;
         flex-direction:column;
@@ -163,8 +175,7 @@
         padding:10px 14px;
         border-radius:22px;
         word-wrap:break-word;
-        /* ⭐️ 폰트 크기를 CSS 변수에서 가져옴 */
-        font-size: var(--log-font-size);
+        font-size: var(--log-font-size); /* ⭐️ 폰트 변수 적용 */
         transition: background 0.3s, color 0.3s, font-size 0.3s;
     }
     .original {
@@ -184,16 +195,15 @@
         transition: color 0.3s;
     }
 
-    /* 팝업 관련 요소는 제거하거나 숨김 처리 */
-    #summary-log, #summary-content, #summary-close {
-        display: none;
-    }
-
-    /* 팝업 창에 적용할 CSS (JavaScript에서 동적으로 삽입) */
+    #summary-log, #summary-content, #summary-close { display: none; }
 </style>
 </head>
 <body>
     <div id="button-container">
+        <button class="lang-btn" id="lang-en">🇺🇸 영어</button>
+        <button class="lang-btn" id="lang-ja">🇯🇵 일본어</button>
+
+        <button id="settings-btn" title="설정">⚙️</button>
         <button id="toggle-theme">🌞 라이트 모드</button>
         <button id="toggle-summary">요약 새 창 열기</button>
     </div>
@@ -220,10 +230,9 @@
 
     <div id="content-container">
         <div id="log"></div>
+    </div>
 
-        </div>
-
-    <script>
+<script>
     const socket = io();
     const body = document.body;
     const logDiv = document.getElementById("log");
@@ -231,7 +240,7 @@
     const themeBtn = document.getElementById("toggle-theme");
     const logs = [];
 
-    // ⭐️ [신규] 설정 관련 변수 추가
+    // ⭐️ 설정 관련 변수
     const settingsBtn = document.getElementById("settings-btn");
     const zoomInBtn = document.getElementById("zoom-in-btn");
     const zoomOutBtn = document.getElementById("zoom-out-btn");
@@ -240,124 +249,99 @@
     const fontDecreaseBtn = document.getElementById("font-decrease-btn");
     const fontIncreaseBtn = document.getElementById("font-increase-btn");
     const fontSizeLevelSpan = document.getElementById("font-size-level");
-    // ------------------------------------------------------------------
 
+    // ⭐️ [신규] 언어 버튼 변수
+    const langBtns = document.querySelectorAll(".lang-btn");
 
     let summaryWindow = null;
-
-    // 초기 테마 설정 (로컬 스토리지 확인)
     let currentTheme = localStorage.getItem('theme') || 'dark';
 
-    // ⭐️ [수정] 팝업 창에서 호출할 함수 (2개로 증가)
-    // window 객체에 할당하여 팝업이 접근할 수 있도록 함
+    // ⭐️ [신규] 언어 상태 변수
+    let currentLang = localStorage.getItem('lang') || 'en'; // 기본 영어
 
-    // 1. 특정 세션 요약 요청
-    // ⭐️ [신규] 줌/폰트 크기 관련 변수 초기화
+    // ⭐️ 줌/폰트 크기 변수
     let currentZoom = 1.0;
     const zoomStep = 0.1;
     let currentFontSize = 14;
     const fontSizeStep = 2;
 
-    // ⭐️ [신규] 팝업 창에서 호출할 함수 (2개)
+    // --- 초기화 실행 ---
+    applyTheme(currentTheme);
+    updateLangButton(currentLang); // ⭐️ 언어 버튼 초기화
+    updateZoom(currentZoom);
+    updateFontSize(currentFontSize);
+    // ---------------------
+
+    // ⭐️ [신규] 언어 선택 버튼 클릭 이벤트
+    langBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const newLang = btn.id === "lang-en" ? "en" : "ja";
+            if (newLang === currentLang) return; // 같은 버튼 클릭 무시
+
+            currentLang = newLang;
+            updateLangButton(newLang);
+            localStorage.setItem('lang', newLang);
+
+            // ⭐️ 서버로 언어 변경 이벤트 전송
+            socket.emit("change_language", {
+                language: newLang,
+                target: 'ko' // 목표 언어는 'ko'로 고정
+            });
+            console.log(`🎧 언어 변경 요청: ${newLang} -> ko`);
+        });
+    });
+
+    // ⭐️ [신규] 언어 버튼 UI 업데이트 함수
+    function updateLangButton(lang) {
+        langBtns.forEach(b => b.classList.remove("active"));
+        const activeBtn = document.getElementById(lang === "en" ? "lang-en" : "lang-ja");
+        if (activeBtn) activeBtn.classList.add("active");
+    }
+
+    // ⭐️ 팝업 창 통신 함수 (2개)
     window.requestSpecificSummaryFromPopup = (sessionId) => {
         if (sessionId) {
-            console.log(`[Main] 팝업으로부터 세션 요청 받음: ${sessionId}`);
-            // 메인 창의 socket을 사용하여 서버에 이벤트 전송
-            socket.emit("request_specific_summary", {
-                session_id: sessionId
-            });
-
-            // 로딩 텍스트를 메인 창에서 직접 설정
+            socket.emit("request_specific_summary", { session_id: sessionId });
             if (summaryWindow && !summaryWindow.closed) {
                 const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-                if (summaryTextDiv) {
-                    summaryTextDiv.textContent = '[선택한 세션 요약 로드 중...]';
-                }
+                if (summaryTextDiv) summaryTextDiv.textContent = '[선택한 세션 요약 로드 중...]';
             }
         }
     }
-
     window.requestRenameSessionFromPopup = (oldId, newId) => {
         if (oldId && newId) {
-            console.log(`[Main] 팝업으로부터 이름 변경 요청 받음: ${oldId} -> ${newId}`);
-            socket.emit("request_rename_session", {
-                old_id: oldId,
-                new_id: newId
-            });
-
+            socket.emit("request_rename_session", { old_id: oldId, new_id: newId });
             if (summaryWindow && !summaryWindow.closed) {
                 const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-                if (summaryTextDiv) {
-                    summaryTextDiv.textContent = `[이름 변경 중: ${oldId} -> ${newId}...]`;
-                }
+                if (summaryTextDiv) summaryTextDiv.textContent = `[이름 변경 중...]`;
             }
         }
     }
 
-    // ⭐️ [신규] 줌/폰트 크기 관련 로직 함수
+    // ⭐️ 줌/폰트 크기 함수
     function updateZoom(newZoom) {
-        currentZoom = Math.max(0.5, Math.min(2.0, newZoom)); // 50% ~ 200% 제한
+        currentZoom = Math.max(0.5, Math.min(2.0, newZoom));
         document.body.style.zoom = currentZoom;
         zoomLevelSpan.textContent = `${Math.round(currentZoom * 100)}%`;
     }
-
     function updateFontSize(newSize) {
-        currentFontSize = Math.max(10, Math.min(24, newSize)); // 폰트 크기 제한
+        currentFontSize = Math.max(10, Math.min(24, newSize));
         document.documentElement.style.setProperty('--log-font-size', `${currentFontSize}px`);
-
         let levelText = "기본";
-        if (currentFontSize > 14) {
-             levelText = `+${(currentFontSize - 14) / fontSizeStep}`;
-        } else if (currentFontSize < 14) {
-             levelText = `-${(14 - currentFontSize) / fontSizeStep}`;
-        }
+        if (currentFontSize > 14) levelText = `+${(currentFontSize - 14) / fontSizeStep}`;
+        else if (currentFontSize < 14) levelText = `-${(14 - currentFontSize) / fontSizeStep}`;
         fontSizeLevelSpan.textContent = levelText;
-
         const entries = logDiv.querySelectorAll('.original, .translated');
         entries.forEach(el => el.style.fontSize = `${currentFontSize}px`);
     }
 
-    // ⭐️ [신규] 줌/폰트 초기 설정 및 이벤트 리스너
-    updateZoom(currentZoom);
-    updateFontSize(currentFontSize);
+    // ⭐️ 줌/폰트 리스너
+    zoomInBtn.addEventListener('click', () => updateZoom(currentZoom + zoomStep));
+    zoomOutBtn.addEventListener('click', () => updateZoom(currentZoom - zoomStep));
+    fontIncreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize + fontSizeStep));
+    fontDecreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize - fontSizeStep));
 
-    zoomInBtn.addEventListener('click', () => {
-        updateZoom(currentZoom + zoomStep);
-    });
-
-    zoomOutBtn.addEventListener('click', () => {
-        updateZoom(currentZoom - zoomStep);
-    });
-
-    fontIncreaseBtn.addEventListener('click', () => {
-        updateFontSize(currentFontSize + fontSizeStep);
-    });
-
-    fontDecreaseBtn.addEventListener('click', () => {
-        updateFontSize(currentFontSize - fontSizeStep);
-    });
-
-
-    // 2. ⭐️ [신규] 세션 이름 변경 요청
-    window.requestRenameSessionFromPopup = (oldId, newId) => {
-        if (oldId && newId) {
-            console.log(`[Main] 팝업으로부터 이름 변경 요청 받음: ${oldId} -> ${newId}`);
-            socket.emit("request_rename_session", {
-                old_id: oldId,
-                new_id: newId
-            });
-
-            // 로딩 텍스트 표시
-            if (summaryWindow && !summaryWindow.closed) {
-                const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-                if (summaryTextDiv) {
-                    summaryTextDiv.textContent = `[이름 변경 중: ${oldId} -> ${newId}...]`;
-                }
-            }
-        }
-    }
-
-
+    // ⭐️ 테마 적용 함수 (팝업 동기화 포함)
     function applyTheme(theme) {
         if (theme === 'light') {
             body.classList.add('light-mode');
@@ -369,8 +353,8 @@
         localStorage.setItem('theme', theme);
         currentTheme = theme;
 
-        // 팝업 창 테마도 동기화 (창이 열려있다면)
         if (summaryWindow && !summaryWindow.closed) {
+            // 팝업 창 테마 즉시 동기화
             const doc = summaryWindow.document;
             const popupBg = theme === 'light' ? '#f4f4f9' : '#222';
             const popupText = theme === 'light' ? '#333' : '#fff';
@@ -381,55 +365,27 @@
 
             doc.body.style.background = popupBg;
             doc.body.style.color = popupText;
-
-            const h1 = doc.querySelector('h1');
-            if(h1) h1.style.color = popupHighlight;
-
-            const sessionSelect = doc.getElementById('session-select');
-            if (sessionSelect) {
-                sessionSelect.style.borderColor = popupBorder;
-                sessionSelect.style.background = popupInputBg;
-                sessionSelect.style.color = popupText;
-            }
-            const summaryTextDiv = doc.getElementById('summary-text');
-            if (summaryTextDiv) {
-                summaryTextDiv.style.borderColor = popupBorder;
-                summaryTextDiv.style.background = popupSummaryBg;
-            }
-            const renameBtn = doc.getElementById('rename-btn');
-            if (renameBtn) {
-                renameBtn.style.background = popupHighlight;
-                renameBtn.style.color = popupText;
-            }
-            // 팝업 창의 스타일 동적 변경
-            const doc = summaryWindow.document;
-            doc.body.style.background = (theme === 'light' ? '#fff' : '#333');
-            doc.body.style.color = (theme === 'light' ? '#333' : '#fff');
-
-            // (추가) 버튼, 드롭다운 등도 테마에 맞게 변경
-            const renameBtn = doc.getElementById('rename-btn');
-            if (renameBtn) {
-                renameBtn.style.background = (theme === 'light' ? '#007bff' : '#1dd1a1');
-                renameBtn.style.color = (theme === 'light' ? '#fff' : '#333');
-            }
+            doc.querySelector('h1').style.color = popupHighlight;
+            doc.getElementById('session-select').style.borderColor = popupBorder;
+            doc.getElementById('session-select').style.background = popupInputBg;
+            doc.getElementById('session-select').style.color = popupText;
+            doc.getElementById('summary-text').style.borderColor = popupBorder;
+            doc.getElementById('summary-text').style.background = popupSummaryBg;
+            doc.getElementById('rename-btn').style.background = popupHighlight;
+            doc.getElementById('rename-btn').style.color = popupText;
         }
     }
-
-    // 페이지 로드 시 테마 적용
-    applyTheme(currentTheme);
 
     themeBtn.addEventListener('click', () => {
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         applyTheme(newTheme);
     });
 
-    // ⭐️ [신규] 설정 버튼 이벤트 리스너 (모달 토글)
+    // ⭐️ 설정 모달 토글
     settingsBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         settingsModal.style.display = settingsModal.style.display === 'block' ? 'none' : 'block';
     });
-
-    // ⭐️ [신규] 모달 외부 클릭 시 모달 닫기
     document.addEventListener('click', (event) => {
         if (settingsModal.style.display === 'block' &&
             !settingsModal.contains(event.target) &&
@@ -438,22 +394,19 @@
         }
     });
 
-    // 팝업 창 열기 및 내용 업데이트 로직
+    // ⭐️ 팝업 창 열기 함수
     function openSummaryWindow() {
-        // 이미 창이 열려 있고 닫히지 않았다면 포커스만 이동
         if (summaryWindow && !summaryWindow.closed) {
             summaryWindow.focus();
-            // (수정) 최초 요약 요청을 다시 보냄 (세션 목록 갱신 및 최신 요약)
             socket.emit("request_summary", {});
             return;
         }
 
-        // 새 팝업 창 열기
         const windowFeatures = 'width=500,height=600,scrollbars=yes,resizable=yes,top=100,left=100';
         summaryWindow = window.open('', 'SummaryPopup', windowFeatures);
 
         if (summaryWindow) {
-             const popupBg = currentTheme === 'light' ? '#f4f4f9' : '#222';
+            const popupBg = currentTheme === 'light' ? '#f4f4f9' : '#222';
             const popupText = currentTheme === 'light' ? '#333' : '#fff';
             const popupHighlight = currentTheme === 'light' ? '#007bff' : '#1dd1a1';
             const popupBorder = currentTheme === 'light' ? '#ddd' : '#555';
@@ -463,203 +416,60 @@
             const renameBtnColor = popupText;
             const renameBtnHoverBg = currentTheme === 'light' ? '#0056b3' : '#10ac84';
 
-            // ⭐️ [수정] 팝업 HTML에 버튼 추가 및 스타일링
-            // ⭐️ [수정] 팝업 HTML에 버튼 추가 및 스타일링
             const popupHTML = `
-                <!DOCTYPE html>
-                <html lang="ko">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>회의 요약</title>
-                    <style>
-                        body {
-                            font-family: 'Segoe UI', Arial, sans-serif;
-                            margin: 0;
-                            padding: 20px;
-                            background: ${popupBg};
-                            color: ${popupText};
-                            line-height: 1.6;
-                            transition: background 0.3s, color 0.3s;
-                        }
-                        h1 {
-                            text-align: center;
-                            color: ${popupHighlight};
-                            margin-bottom: 20px;
-                            font-size: 1.5em;
-                        }
-
-                        /* [수정] 컨트롤 영역 스타일 */
-                        #session-controls {
-                            display: flex;
-                            gap: 10px;
-                            margin-bottom: 15px;
-                            align-items: stretch; /* 높이를 맞춤 */
-                        }
-                        #session-controls label {
-                            font-weight: bold;
-                            padding: 8px 0;
-                        }
-                        #session-select {
-                            flex: 1; /* 남는 공간을 모두 차지 */
-                            padding: 8px;
-                            border-radius: 5px;
-                            border: 1px solid ${popupBorder};
-                            background: ${popupInputBg};
-                            color: ${popupText};
-                            font-size: 0.9em;
-                        }
-
-                        /* ⭐️ 이름 변경 버튼 스타일 */
-                        #rename-btn {
-                            padding: 8px 12px;
-                            border-radius: 5px;
-                            border: none;
-                            background: ${renameBtnBg};
-                            color: ${renameBtnColor};
-                            cursor: pointer;
-                            font-weight: bold;
-                            font-size: 0.9em;
-                            transition: background 0.3s;
-                        }
-
-                        /* ⭐️ [신규] 이름 변경 버튼 스타일 */
-                        #rename-btn {
-                            padding: 8px 12px;
-                            border-radius: 5px;
-                            border: none;
-                            background: ${currentTheme === 'light' ? '#007bff' : '#1dd1a1'};
-                            color: ${currentTheme === 'light' ? '#fff' : '#333'};
-                            cursor: pointer;
-                            font-weight: bold;
-                            font-size: 0.9em;
-                            transition: background 0.3s;
-                        }
-                        #rename-btn:hover {
-                            background: ${currentTheme === 'light' ? '#0056b3' : '#10ac84'};
-                        }
-
-                        #rename-btn:hover {
-                            background: ${renameBtnHoverBg};
-                        }
-
-                        #summary-text {
-                            white-space: pre-wrap;
-                            border: 1px solid ${popupBorder};
-                            padding: 15px;
-                            border-radius: 8px;
-                            background: ${popupSummaryBg};
-                            min-height: 300px;
-                        }
-                    </style>
-                </head>
-                <body>
+                <!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>회의 요약</title>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: ${popupBg}; color: ${popupText}; line-height: 1.6; transition: background 0.3s, color 0.3s; }
+                    h1 { text-align: center; color: ${popupHighlight}; margin-bottom: 20px; font-size: 1.5em; }
+                    #session-controls { display: flex; gap: 10px; margin-bottom: 15px; align-items: stretch; }
+                    #session-controls label { font-weight: bold; padding: 8px 0; }
+                    #session-select { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid ${popupBorder}; background: ${popupInputBg}; color: ${popupText}; font-size: 0.9em; }
+                    #rename-btn { padding: 8px 12px; border-radius: 5px; border: none; background: ${renameBtnBg}; color: ${renameBtnColor}; cursor: pointer; font-weight: bold; font-size: 0.9em; transition: background 0.3s; }
+                    #rename-btn:hover { background: ${renameBtnHoverBg}; }
+                    #summary-text { white-space: pre-wrap; border: 1px solid ${popupBorder}; padding: 15px; border-radius: 8px; background: ${popupSummaryBg}; min-height: 300px; }
+                </style>
+                </head><body>
                     <h1>회의 요약</h1>
-
                     <div id="session-controls">
                         <label for="session-select">세션:</label>
-                        <select id="session-select">
-                            <option value="">[로드 중...]</option>
-                        </select>
+                        <select id="session-select"><option value="">[로드 중...]</option></select>
                         <button id="rename-btn">이름 변경</button>
                     </div>
-
                     <div id="summary-text">[요약 생성 중...]</div>
-
                     <script>
-                        // ⭐️ [수정] 팝업창 내부 스크립트
                         const sessionSelect = document.getElementById('session-select');
                         const renameBtn = document.getElementById('rename-btn');
-
-                        // 1. 드롭다운 변경 리스너
                         sessionSelect.addEventListener('change', () => {
                             const selectedSessionId = sessionSelect.value;
-
                             if (selectedSessionId && window.opener && typeof window.opener.requestSpecificSummaryFromPopup === 'function') {
-                                // 메인 창(opener)에 정의된 함수 호출
                                 window.opener.requestSpecificSummaryFromPopup(selectedSessionId);
-                            } else {
-                                console.error("Opener 또는 요약 요청 함수를 찾을 수 없습니다.");
-                                document.getElementById('summary-text').textContent = '[오류: 메인 창과 연결 실패]';
                             }
                         });
-
-                        // 2. ⭐️ [신규] 이름 변경 버튼 리스너
                         renameBtn.addEventListener('click', () => {
                             const oldId = sessionSelect.value;
-                            if (!oldId) {
-                                alert("이름을 변경할 세션이 선택되지 않았습니다.");
-                                return;
-                            }
-
+                            if (!oldId || oldId.startsWith('[')) { alert("이름을 변경할 세션이 선택되지 않았습니다."); return; }
                             const newId = prompt("새로운 세션 이름을 입력하세요:", oldId);
-
-                            if (newId === null || newId.trim() === "") {
-                                // 사용자가 취소했거나 빈 값을 입력
-                                return;
-                            }
-
-                            if (newId.trim() === oldId) {
-                                // 이름이 변경되지 않음
-                                return;
-                            }
-
-                            // 메인 창(opener)에 정의된 함수 호출
+                            if (newId === null || newId.trim() === "" || newId.trim() === oldId) { return; }
                             if (window.opener && typeof window.opener.requestRenameSessionFromPopup === 'function') {
                                 window.opener.requestRenameSessionFromPopup(oldId, newId.trim());
-                            } else {
-                                console.error("Opener 또는 이름 변경 요청 함수를 찾을 수 없습니다.");
-                                document.getElementById('summary-text').textContent = '[오류: 메인 창과 연결 실패]';
-                            }
-                        });
-
-                        // 2. ⭐️ 이름 변경 버튼 리스너
-                        renameBtn.addEventListener('click', () => {
-                            const oldId = sessionSelect.value;
-                            if (!oldId || oldId.startsWith('[')) { // 로드 중이거나 선택되지 않은 경우 제외
-                                alert("이름을 변경할 세션이 선택되지 않았습니다.");
-                                return;
-                            }
-
-                            const newId = prompt("새로운 세션 이름을 입력하세요:", oldId);
-
-                            if (newId === null || newId.trim() === "" || newId.trim() === oldId) {
-                                return;
-                            }
-
-                            if (window.opener && typeof window.opener.requestRenameSessionFromPopup === 'function') {
-                                window.opener.requestRenameSessionFromPopup(oldId, newId.trim());
-                            } else {
-                                console.error("Opener 또는 이름 변경 요청 함수를 찾을 수 없습니다.");
-                                document.getElementById('summary-text').textContent = '[오류: 메인 창과 연결 실패]';
                             }
                         });
                     <\/script>
-                </body>
-                </html>
+                </body></html>
             `;
-
-            // 새 창에 내용 쓰기
             summaryWindow.document.write(popupHTML);
             summaryWindow.document.close();
-
-            // 🚨 서버에 "최초" 요약 데이터(모든 세션 + 최신 요약) 요청
             socket.emit("request_summary", {});
-
         } else {
             alert("팝업 창이 차단되었습니다. 브라우저 설정을 확인해주세요.");
         }
     }
 
-
-    toggleBtn.addEventListener("click", () => {
-        // 버튼 클릭 시 팝업 창을 열고 "최초" 요약 요청
-        openSummaryWindow();
-    });
+    toggleBtn.addEventListener("click", openSummaryWindow);
 
     // ----------------------------------------------------
     // ✨ Socket.IO 연동 로직
     // ----------------------------------------------------
-
     socket.on("connect", () => console.log("✅ 서버 연결 성공"));
 
     // 1. 실시간 번역 로그 수신
@@ -668,29 +478,17 @@
         renderLogs(logDiv, logs, true);
     });
 
-    // 2. [수정] 서버에서 요약 데이터 수신 (최초 또는 특정)
+    // 2. 서버에서 요약 데이터 수신 (요약 창 업데이트)
     socket.on("summary_data_updated", data => {
-        console.log("✅ 서버로부터 요약 데이터를 수신했습니다.", data);
-
-        // 팝업 창이 없거나 닫혔으면 아무것도 안 함
-        if (!summaryWindow || summaryWindow.closed) {
-            return;
-        }
-
-        // 1. 요약 텍스트 업데이트
+        console.log("✅ 요약 데이터 수신:", data);
+        if (!summaryWindow || summaryWindow.closed) return;
         const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-        if (summaryTextDiv) {
-            summaryTextDiv.textContent = data.summary;
-        }
+        if (summaryTextDiv) summaryTextDiv.textContent = data.summary;
 
-        // 2. (최초 로드 시 또는 필요시) 세션 목록(드롭다운) 채우기
-        if (data.all_sessions && data.all_sessions.length > 0) {
+        if (data.all_sessions) {
             const sessionSelect = summaryWindow.document.getElementById('session-select');
             if (sessionSelect) {
-                // 현재 선택된 값을 임시 저장
-                const currentVal = sessionSelect.value;
-                sessionSelect.innerHTML = ""; // 기존 옵션 비우기
-
+                sessionSelect.innerHTML = "";
                 data.all_sessions.forEach(sessionId => {
                     const option = summaryWindow.document.createElement('option');
                     option.value = sessionId;
@@ -699,17 +497,20 @@
                 });
             }
         }
-
-        // 3. 현재 세션 ID로 드롭다운 선택 설정
         if (data.current_session_id) {
             const sessionSelect = summaryWindow.document.getElementById('session-select');
-            if (sessionSelect) {
-                sessionSelect.value = data.current_session_id;
-            }
+            if (sessionSelect) sessionSelect.value = data.current_session_id;
         }
     });
 
+    // ⭐️ 3. [신규] 서버에서 언어 변경 완료 수신 (필요 시)
+    socket.on("language_changed", data => {
+        console.log(`✅ 서버가 언어 변경 확인: ${data.language}`);
+        // (필요 시: "언어 변경 완료" 같은 알림 토스트 팝업)
+    });
 
+
+    // ⭐️ 로그 렌더링 함수 (동적 폰트 크기 적용)
     function renderLogs(container, dataLogs, scrollToBottom=false){
         container.innerHTML = "";
         dataLogs.forEach(data => {
@@ -723,12 +524,12 @@
             const originalDiv = document.createElement("div");
             originalDiv.classList.add("original");
             originalDiv.textContent = data.original;
-            originalDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 동적 폰트 크기 적용
+            originalDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 폰트 크기 적용
 
             const translatedDiv = document.createElement("div");
             translatedDiv.classList.add("translated");
             translatedDiv.textContent = data.translated;
-            translatedDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 동적 폰트 크기 적용
+            translatedDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 폰트 크기 적용
 
             entry.appendChild(timeDiv);
             entry.appendChild(originalDiv);

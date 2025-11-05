@@ -8,6 +8,8 @@ from deep_translator import GoogleTranslator
 from datetime import datetime, timezone, timedelta
 import traceback
 import noisereduce as nr
+
+import config
 from db_handler import insert_transcript
 from config import (
     MODEL_TYPE, LANGUAGE, TARGET_LANG,
@@ -138,7 +140,7 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                             # 🧠 Whisper 인식
                             segments, _ = model.transcribe(
                                 audio_float32,
-                                language=LANGUAGE,
+                                language=config.LANGUAGE,
                                 beam_size=BEAM_SIZE,
                                 # --- ⭐️ 환각(쓰레기값) 억제 옵션 추가 ---
                                 vad_filter=True,  # VAD 필터를 사용해 음성이 없는 세그먼트를 제거
