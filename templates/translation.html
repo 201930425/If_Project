@@ -8,58 +8,22 @@
     /* ⭐️ CSS 변수 선언: 폰트 크기 (JS에서 동적으로 변경) */
     :root {
         --log-font-size: 14px;
+        /* 다크 모드 (기본값) 변수 */
+        --bg-color: #222;
+        --text-color: #fff;
+        --log-bg: rgba(255,255,255,0.05);
+        --original-bg: rgba(255,255,255,0.2);
+        --original-text: #fff;
+        --translated-bg: rgba(255,255,255,0.8);
+        --translated-text: #333;
+        --timestamp-color: #ffd700;
+        --button-bg: #1dd1a1;
+        --button-hover-bg: #10ac84;
+        --delete-bg: #e74c3c;
+        --delete-hover-bg: #c0392b;
+        --clear-bg: #f39c12;
+        --clear-hover-bg: #e67e22;
     }
-
-    body {
-        font-family: 'Segoe UI', Arial, sans-serif;
-        margin:0;
-        padding:15px;
-        display:flex;
-        flex-direction:column;
-        height:100vh;
-        background: var(--bg-color, #222);
-        color: var(--text-color, #fff);
-        transition: background 0.3s, color 0.3s;
-    }
-
-    /* 버튼 컨테이너 */
-    #button-container {
-        display: flex;
-        gap: 10px;
-        align-self: flex-end;
-        margin-bottom: 15px;
-        z-index: 10;
-        align-items: center; /* ⭐️ 버튼 정렬 */
-    }
-
-    /* ⭐️ [병합] 모든 버튼 스타일 */
-    #toggle-summary, #toggle-theme, #settings-btn, .lang-btn {
-        padding:8px 18px;
-        cursor:pointer;
-        background: var(--button-bg, #1dd1a1);
-        border:none;
-        border-radius:20px;
-        font-weight:bold;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        transition: background 0.3s, color 0.3s, transform 0.2s;
-        color: var(--text-color);
-    }
-    #settings-btn {
-        padding: 8px 12px;
-        font-size: 1.2em;
-    }
-    #toggle-summary:hover, #toggle-theme:hover, #settings-btn:hover, .lang-btn:hover {
-        background: var(--button-hover-bg, #10ac84);
-        transform: scale(1.05); /* ⭐️ 호버 시 확대 효과 */
-    }
-
-    /* ⭐️ [신규] 언어 버튼 활성화 스타일 */
-    .lang-btn.active {
-        background: #ffcc00;
-        color: #000;
-        transform: scale(1.05);
-    }
-
 
     /* 라이트 모드 */
     body.light-mode {
@@ -73,20 +37,77 @@
         --timestamp-color: #007bff;
         --button-bg: #007bff;
         --button-hover-bg: #0056b3;
+        --delete-bg: #dc3545;
+        --delete-hover-bg: #c82333;
+        --clear-bg: #ffc107;
+        --clear-hover-bg: #ffae00;
     }
 
-    /* 다크 모드 */
     body {
-        --bg-color: #222;
-        --text-color: #fff;
-        --log-bg: rgba(255,255,255,0.05);
-        --original-bg: rgba(255,255,255,0.2);
-        --original-text: #fff;
-        --translated-bg: rgba(255,255,255,0.8);
-        --translated-text: #333;
-        --timestamp-color: #ffd700;
-        --button-bg: #1dd1a1;
-        --button-hover-bg: #10ac84;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        margin:0;
+        padding:15px;
+        display:flex;
+        flex-direction:column;
+        height:100vh;
+        background: var(--bg-color);
+        color: var(--text-color);
+        transition: background 0.3s, color 0.3s;
+    }
+
+    /* 버튼 컨테이너 (좌/우 분리) */
+    #button-container {
+        display: flex;
+        margin-bottom: 15px;
+        z-index: 10;
+        width: 100%;
+        justify-content: space-between;
+    }
+    #left-buttons, #right-buttons {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    /* ⭐️ [리팩토링] 모든 버튼 공통 스타일을 .all-btn 클래스로 통합 */
+    .all-btn {
+        padding:8px 18px;
+        cursor:pointer;
+        background: var(--button-bg);
+        border:none;
+        border-radius:20px;
+        font-weight:bold;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        transition: background 0.3s, color 0.3s, transform 0.2s;
+        color: var(--text-color);
+    }
+    .all-btn:hover {
+        background: var(--button-hover-bg);
+        transform: scale(1.05);
+    }
+
+    /* ⭐️ 설정 버튼만 폰트 크기 조정 */
+    #settings-btn {
+        padding: 8px 12px;
+        font-size: 1.2em;
+    }
+
+    /* ⭐️ Delete 버튼 스타일 */
+    #delete-log-btn {
+        background: var(--delete-bg);
+        color: #fff; /* 항상 흰색 텍스트 */
+    }
+    #delete-log-btn:hover {
+        background: var(--delete-hover-bg);
+    }
+
+    /* ⭐️ Clear 버튼 스타일 */
+    #clear-log-btn {
+        background: var(--clear-bg);
+        color: #333; /* 어두운 텍스트 */
+    }
+    #clear-log-btn:hover {
+        background: var(--clear-hover-bg);
     }
 
     /* 설정 메뉴 (모달) 스타일 */
@@ -200,30 +221,36 @@
 </head>
 <body>
     <div id="button-container">
-        <button class="lang-btn" id="lang-en">🇺🇸 영어</button>
-        <button class="lang-btn" id="lang-ja">🇯🇵 일본어</button>
+        <div id="left-buttons">
+            <button id="delete-log-btn" class="all-btn">Delete!</button>
+            <button id="clear-log-btn" class="all-btn">Clear!</button>
+        </div>
 
-        <button id="settings-btn" title="설정">⚙️</button>
-        <button id="toggle-theme">🌞 라이트 모드</button>
-        <button id="toggle-summary">요약 새 창 열기</button>
+        <div id="right-buttons">
+            <button class="all-btn" id="lang-toggle-btn">Language 🇯🇵/🇺🇸</button>
+
+            <button id="settings-btn" class="all-btn" title="설정">⚙️</button>
+            <button id="toggle-theme" class="all-btn">🌞 라이트 모드</button>
+            <button id="toggle-summary" class="all-btn">요약 새 창 열기</button>
+        </div>
     </div>
 
     <div id="settings-modal">
         <div class="setting-item">
             <label>화면 확대/축소</label>
             <div class="zoom-controls">
-                <button id="zoom-out-btn">-</button>
+                <button id="zoom-out-btn" class="all-btn">-</button>
                 <span id="zoom-level">100%</span>
-                <button id="zoom-in-btn">+</button>
+                <button id="zoom-in-btn" class="all-btn">+</button>
             </div>
         </div>
 
         <div class="setting-item">
             <label>번역 로그 폰트 크기</label>
             <div class="zoom-controls">
-                <button id="font-decrease-btn">A-</button>
+                <button id="font-decrease-btn" class="all-btn">A-</button>
                 <span id="font-size-level">기본</span>
-                <button id="font-increase-btn">A+</button>
+                <button id="font-increase-btn" class="all-btn">A+</button>
             </div>
         </div>
     </div>
@@ -250,14 +277,18 @@
     const fontIncreaseBtn = document.getElementById("font-increase-btn");
     const fontSizeLevelSpan = document.getElementById("font-size-level");
 
-    // ⭐️ [신규] 언어 버튼 변수
-    const langBtns = document.querySelectorAll(".lang-btn");
+    // ⭐️ 로그 삭제 및 클리어 버튼 변수
+    const deleteLogBtn = document.getElementById("delete-log-btn");
+    const clearLogBtn = document.getElementById("clear-log-btn");
+
+    // ⭐️ [수정] 언어 토글 버튼 변수
+    const langToggleBtn = document.getElementById("lang-toggle-btn");
 
     let summaryWindow = null;
     let currentTheme = localStorage.getItem('theme') || 'dark';
 
-    // ⭐️ [신규] 언어 상태 변수
-    let currentLang = localStorage.getItem('lang') || 'en'; // 기본 영어
+    // ⭐️ 언어 상태 변수 (기본값 'en' 또는 저장된 값)
+    let currentLang = localStorage.getItem('lang') || 'en';
 
     // ⭐️ 줌/폰트 크기 변수
     let currentZoom = 1.0;
@@ -267,35 +298,58 @@
 
     // --- 초기화 실행 ---
     applyTheme(currentTheme);
-    updateLangButton(currentLang); // ⭐️ 언어 버튼 초기화
+    updateLangButton(currentLang); // ⭐️ 통합 버튼 업데이트
     updateZoom(currentZoom);
     updateFontSize(currentFontSize);
     // ---------------------
 
-    // ⭐️ [신규] 언어 선택 버튼 클릭 이벤트
-    langBtns.forEach(btn => {
-        btn.addEventListener("click", () => {
-            const newLang = btn.id === "lang-en" ? "en" : "ja";
-            if (newLang === currentLang) return; // 같은 버튼 클릭 무시
-
-            currentLang = newLang;
-            updateLangButton(newLang);
-            localStorage.setItem('lang', newLang);
-
-            // ⭐️ 서버로 언어 변경 이벤트 전송
-            socket.emit("change_language", {
-                language: newLang,
-                target: 'ko' // 목표 언어는 'ko'로 고정
-            });
-            console.log(`🎧 언어 변경 요청: ${newLang} -> ko`);
-        });
+    // ⭐️ 로그 삭제 (가장 오래된 것 하나) 버튼 클릭 이벤트 리스너
+    deleteLogBtn.addEventListener('click', () => {
+        if (logs.length > 0) {
+            logs.shift();
+            renderLogs(logDiv, logs, false);
+            console.log("🗑️ 가장 오래된 로그 항목이 삭제되었습니다.");
+        } else {
+            console.log("로그가 없습니다.");
+        }
     });
 
-    // ⭐️ [신규] 언어 버튼 UI 업데이트 함수
+    // ⭐️ 로그 Clear (전체 삭제) 버튼 클릭 이벤트 리스너
+    clearLogBtn.addEventListener('click', () => {
+        if (confirm("정말로 모든 로그를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+            logs.length = 0;
+            renderLogs(logDiv, logs, false);
+            console.log("🔥 모든 로그 항목이 삭제되었습니다.");
+        }
+    });
+
+
+    // ⭐️ [수정] 언어 토글 버튼 클릭 이벤트
+    langToggleBtn.addEventListener("click", () => {
+        // 현재 언어에 따라 다음 언어를 결정 (en <-> ja 토글)
+        const newLang = currentLang === "en" ? "ja" : "en";
+
+        currentLang = newLang;
+        updateLangButton(newLang); // 버튼 UI 업데이트
+        localStorage.setItem('lang', newLang);
+
+        // 서버로 언어 변경 이벤트 전송
+        socket.emit("change_language", {
+            language: newLang,
+            target: 'ko' // 목표 언어는 'ko'로 고정
+        });
+        console.log(`🎧 언어 변경 요청: ${newLang} -> ko`);
+    });
+
+    // ⭐️ [수정] 언어 버튼 UI 업데이트 함수 (통합 버튼용)
     function updateLangButton(lang) {
-        langBtns.forEach(b => b.classList.remove("active"));
-        const activeBtn = document.getElementById(lang === "en" ? "lang-en" : "lang-ja");
-        if (activeBtn) activeBtn.classList.add("active");
+        if (lang === "en") {
+            langToggleBtn.textContent = "🇺🇸 영어 선택 중";
+        } else if (lang === "ja") {
+            langToggleBtn.textContent = "🇯🇵 일본어 선택 중";
+        } else {
+            langToggleBtn.textContent = "Language 🇯🇵/🇺🇸";
+        }
     }
 
     // ⭐️ 팝업 창 통신 함수 (2개)
@@ -354,25 +408,37 @@
         currentTheme = theme;
 
         if (summaryWindow && !summaryWindow.closed) {
-            // 팝업 창 테마 즉시 동기화
+            // 팝업 창 테마 즉시 동기화 (간결화를 위해 스타일 변수를 사용하지 않고 직접 적용)
             const doc = summaryWindow.document;
-            const popupBg = theme === 'light' ? '#f4f4f9' : '#222';
-            const popupText = theme === 'light' ? '#333' : '#fff';
-            const popupHighlight = theme === 'light' ? '#007bff' : '#1dd1a1';
-            const popupBorder = theme === 'light' ? '#ddd' : '#555';
-            const popupInputBg = theme === 'light' ? '#fff' : '#444';
-            const popupSummaryBg = theme === 'light' ? '#f9f9f9' : '#2a2a2a';
+            const isLight = theme === 'light';
+
+            const popupBg = isLight ? '#f4f4f9' : '#222';
+            const popupText = isLight ? '#333' : '#fff';
+            const popupHighlight = isLight ? '#007bff' : '#1dd1a1';
+            const popupBorder = isLight ? '#ddd' : '#555';
+            const popupInputBg = isLight ? '#fff' : '#444';
+            const popupSummaryBg = isLight ? '#f9f9f9' : '#2a2a2a';
 
             doc.body.style.background = popupBg;
             doc.body.style.color = popupText;
-            doc.querySelector('h1').style.color = popupHighlight;
-            doc.getElementById('session-select').style.borderColor = popupBorder;
-            doc.getElementById('session-select').style.background = popupInputBg;
-            doc.getElementById('session-select').style.color = popupText;
-            doc.getElementById('summary-text').style.borderColor = popupBorder;
-            doc.getElementById('summary-text').style.background = popupSummaryBg;
-            doc.getElementById('rename-btn').style.background = popupHighlight;
-            doc.getElementById('rename-btn').style.color = popupText;
+            const h1Element = doc.querySelector('h1');
+            if(h1Element) h1Element.style.color = popupHighlight;
+            const sessionSelectElement = doc.getElementById('session-select');
+            if(sessionSelectElement) {
+                sessionSelectElement.style.borderColor = popupBorder;
+                sessionSelectElement.style.background = popupInputBg;
+                sessionSelectElement.style.color = popupText;
+            }
+            const summaryTextElement = doc.getElementById('summary-text');
+            if(summaryTextElement) {
+                summaryTextElement.style.borderColor = popupBorder;
+                summaryTextElement.style.background = popupSummaryBg;
+            }
+            const renameBtnElement = doc.getElementById('rename-btn');
+            if(renameBtnElement) {
+                renameBtnElement.style.background = popupHighlight;
+                renameBtnElement.style.color = popupText;
+            }
         }
     }
 
@@ -406,15 +472,16 @@
         summaryWindow = window.open('', 'SummaryPopup', windowFeatures);
 
         if (summaryWindow) {
-            const popupBg = currentTheme === 'light' ? '#f4f4f9' : '#222';
-            const popupText = currentTheme === 'light' ? '#333' : '#fff';
-            const popupHighlight = currentTheme === 'light' ? '#007bff' : '#1dd1a1';
-            const popupBorder = currentTheme === 'light' ? '#ddd' : '#555';
-            const popupInputBg = currentTheme === 'light' ? '#fff' : '#444';
-            const popupSummaryBg = currentTheme === 'light' ? '#f9f9f9' : '#2a2a2a';
+            const isLight = currentTheme === 'light';
+            const popupBg = isLight ? '#f4f4f9' : '#222';
+            const popupText = isLight ? '#333' : '#fff';
+            const popupHighlight = isLight ? '#007bff' : '#1dd1a1';
+            const popupBorder = isLight ? '#ddd' : '#555';
+            const popupInputBg = isLight ? '#fff' : '#444';
+            const popupSummaryBg = isLight ? '#f9f9f9' : '#2a2a2a';
             const renameBtnBg = popupHighlight;
             const renameBtnColor = popupText;
-            const renameBtnHoverBg = currentTheme === 'light' ? '#0056b3' : '#10ac84';
+            const renameBtnHoverBg = isLight ? '#0056b3' : '#10ac84';
 
             const popupHTML = `
                 <!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>회의 요약</title>
@@ -503,7 +570,7 @@
         }
     });
 
-    // ⭐️ 3. [신규] 서버에서 언어 변경 완료 수신 (필요 시)
+    // ⭐️ 3. 서버에서 언어 변경 완료 수신 (필요 시)
     socket.on("language_changed", data => {
         console.log(`✅ 서버가 언어 변경 확인: ${data.language}`);
         // (필요 시: "언어 변경 완료" 같은 알림 토스트 팝업)
