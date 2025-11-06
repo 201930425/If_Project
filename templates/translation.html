@@ -19,10 +19,11 @@
         --timestamp-color: #ffd700;
         --button-bg: #1dd1a1;
         --button-hover-bg: #10ac84;
-        --delete-bg: #e74c3c;
-        --delete-hover-bg: #c0392b;
         --clear-bg: #f39c12;
         --clear-hover-bg: #e67e22;
+        /* 메뉴 드롭다운 배경 및 그림자 */
+        --menu-bg: #333;
+        --menu-shadow: 0 6px 12px rgba(0,0,0,0.5);
     }
 
     /* 라이트 모드 */
@@ -37,10 +38,10 @@
         --timestamp-color: #007bff;
         --button-bg: #007bff;
         --button-hover-bg: #0056b3;
-        --delete-bg: #dc3545;
-        --delete-hover-bg: #c82333;
         --clear-bg: #ffc107;
         --clear-hover-bg: #ffae00;
+        --menu-bg: #fff;
+        --menu-shadow: 0 6px 12px rgba(0,0,0,0.2);
     }
 
     body {
@@ -62,11 +63,18 @@
         z-index: 10;
         width: 100%;
         justify-content: space-between;
+        position: relative; /* 드롭다운 기준점 */
     }
-    #left-buttons, #right-buttons {
+    #left-buttons {
         display: flex;
         gap: 10px;
         align-items: center;
+    }
+    /* ⭐️ 오른쪽 컨테이너는 요약 버튼과 토글 메뉴만 포함 */
+    #right-buttons {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start; /* 드롭다운을 상단 정렬 */
     }
 
     /* ⭐️ [리팩토링] 모든 버튼 공통 스타일을 .all-btn 클래스로 통합 */
@@ -80,59 +88,77 @@
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         transition: background 0.3s, color 0.3s, transform 0.2s;
         color: var(--text-color);
+        white-space: nowrap; /* 텍스트 줄바꿈 방지 */
     }
     .all-btn:hover {
         background: var(--button-hover-bg);
         transform: scale(1.05);
     }
 
-    /* ⭐️ 설정 버튼만 폰트 크기 조정 */
-    #settings-btn {
-        padding: 8px 12px;
-        font-size: 1.2em;
-    }
-
-    /* ⭐️ Delete 버튼 스타일 */
-    #delete-log-btn {
-        background: var(--delete-bg);
-        color: #fff; /* 항상 흰색 텍스트 */
-    }
-    #delete-log-btn:hover {
-        background: var(--delete-hover-bg);
-    }
-
     /* ⭐️ Clear 버튼 스타일 */
     #clear-log-btn {
         background: var(--clear-bg);
-        color: #333; /* 어두운 텍스트 */
+        color: #333;
     }
     #clear-log-btn:hover {
         background: var(--clear-hover-bg);
     }
 
-    /* 설정 메뉴 (모달) 스타일 */
+    /* ⭐️ 유틸리티 메뉴 토글 버튼 스타일 (아이콘 형태) */
+    #utility-menu-toggle {
+        padding: 8px 12px;
+        font-size: 1.2em;
+    }
+
+    /* ⭐️ [수정] 유틸리티 드롭다운 메뉴 컨테이너 */
+    #utility-dropdown-menu {
+        display: none; /* JS로 토글 */
+        position: absolute;
+
+        /* ⭐️ 오른쪽 최상단에 고정 */
+        /* 버튼 높이(약 36px)와 간격(14px)을 고려하여 50px로 설정 */
+        top: 50px;
+        right: 0;
+
+        padding: 10px;
+        background: var(--menu-bg);
+        border-radius: 10px;
+        box-shadow: var(--menu-shadow);
+        z-index: 20;
+        flex-direction: column;
+        gap: 10px;
+        /* transform: translateY(100%); 및 margin-top 제거 */
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* ⭐️ 드롭다운 메뉴 내부 버튼 스타일 조정 */
+    #utility-dropdown-menu .all-btn {
+        width: 100%; /* 메뉴 너비 채우기 */
+        box-shadow: none; /* 메뉴 내에서는 그림자 제거 */
+        border-radius: 8px; /* 둥근 모양 완화 */
+        padding: 10px 15px;
+    }
+
+    /* ⭐️ 설정 메뉴 (모달) 스타일 - 메뉴 내부로 이동 */
     #settings-modal {
         display: none;
-        position: absolute;
-        top: 60px;
-        right: 15px;
-        width: 250px;
-        padding: 15px;
-        background: var(--bg-color);
-        border: 1px solid var(--log-bg);
-        border-radius: 10px;
-        box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+        position: static;
+        width: auto;
+        padding: 15px 0 0 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
         z-index: 20;
     }
     .setting-item {
-        display: flex;
-        flex-direction: column;
         margin-bottom: 15px;
+        padding: 0 15px;
     }
-    .setting-item label {
-        font-weight: bold;
-        margin-bottom: 5px;
+    .setting-item:last-child {
+        margin-bottom: 0;
     }
+
+    /* ⭐️ 줌 컨트롤 스타일: 양옆 정렬된 한 줄 구조 */
     .zoom-controls {
         display: flex;
         justify-content: space-between;
@@ -196,7 +222,7 @@
         padding:10px 14px;
         border-radius:22px;
         word-wrap:break-word;
-        font-size: var(--log-font-size); /* ⭐️ 폰트 변수 적용 */
+        font-size: var(--log-font-size);
         transition: background 0.3s, color 0.3s, font-size 0.3s;
     }
     .original {
@@ -222,35 +248,40 @@
 <body>
     <div id="button-container">
         <div id="left-buttons">
-            <button id="delete-log-btn" class="all-btn">Delete!</button>
             <button id="clear-log-btn" class="all-btn">Clear!</button>
         </div>
 
         <div id="right-buttons">
-            <button class="all-btn" id="lang-toggle-btn">Language 🇯🇵/🇺🇸</button>
-
-            <button id="settings-btn" class="all-btn" title="설정">⚙️</button>
-            <button id="toggle-theme" class="all-btn">🌞 라이트 모드</button>
             <button id="toggle-summary" class="all-btn">요약 새 창 열기</button>
-        </div>
-    </div>
 
-    <div id="settings-modal">
-        <div class="setting-item">
-            <label>화면 확대/축소</label>
-            <div class="zoom-controls">
-                <button id="zoom-out-btn" class="all-btn">-</button>
-                <span id="zoom-level">100%</span>
-                <button id="zoom-in-btn" class="all-btn">+</button>
-            </div>
-        </div>
+            <button id="utility-menu-toggle" class="all-btn" title="기타 기능">•••</button>
 
-        <div class="setting-item">
-            <label>번역 로그 폰트 크기</label>
-            <div class="zoom-controls">
-                <button id="font-decrease-btn" class="all-btn">A-</button>
-                <span id="font-size-level">기본</span>
-                <button id="font-increase-btn" class="all-btn">A+</button>
+            <div id="utility-dropdown-menu">
+                <button class="all-btn" id="lang-toggle-btn">🇺🇸 영어 선택 중</button>
+
+                <button id="toggle-theme" class="all-btn">🌙 다크 모드</button>
+
+                <button id="settings-btn" class="all-btn">⚙️ 설정 열기</button>
+
+                <div id="settings-modal">
+                    <div class="setting-item">
+                        <label>화면 확대/축소</label>
+                        <div class="zoom-controls">
+                            <button id="zoom-out-btn" class="all-btn">-</button>
+                            <span id="zoom-level">100%</span>
+                            <button id="zoom-in-btn" class="all-btn">+</button>
+                        </div>
+                    </div>
+
+                    <div class="setting-item">
+                        <label>번역 로그 폰트 크기</label>
+                        <div class="zoom-controls">
+                            <button id="font-decrease-btn" class="all-btn">A-</button>
+                            <span id="font-size-level">기본</span>
+                            <button id="font-increase-btn" class="all-btn">A+</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -264,11 +295,18 @@
     const body = document.body;
     const logDiv = document.getElementById("log");
     const toggleBtn = document.getElementById("toggle-summary");
-    const themeBtn = document.getElementById("toggle-theme");
     const logs = [];
 
-    // ⭐️ 설정 관련 변수
+    // ⭐️ 유틸리티 메뉴 관련 변수
+    const utilityMenuToggle = document.getElementById("utility-menu-toggle");
+    const utilityDropdownMenu = document.getElementById("utility-dropdown-menu");
+
+    // ⭐️ 통합된 메뉴 내부 버튼 변수
+    const themeBtn = document.getElementById("toggle-theme");
     const settingsBtn = document.getElementById("settings-btn");
+    const langToggleBtn = document.getElementById("lang-toggle-btn");
+
+    // ⭐️ 설정 모달 내부 변수
     const zoomInBtn = document.getElementById("zoom-in-btn");
     const zoomOutBtn = document.getElementById("zoom-out-btn");
     const zoomLevelSpan = document.getElementById("zoom-level");
@@ -277,20 +315,12 @@
     const fontIncreaseBtn = document.getElementById("font-increase-btn");
     const fontSizeLevelSpan = document.getElementById("font-size-level");
 
-    // ⭐️ 로그 삭제 및 클리어 버튼 변수
-    const deleteLogBtn = document.getElementById("delete-log-btn");
+    // ⭐️ 로그 클리어 버튼 변수
     const clearLogBtn = document.getElementById("clear-log-btn");
-
-    // ⭐️ [수정] 언어 토글 버튼 변수
-    const langToggleBtn = document.getElementById("lang-toggle-btn");
 
     let summaryWindow = null;
     let currentTheme = localStorage.getItem('theme') || 'dark';
-
-    // ⭐️ 언어 상태 변수 (기본값 'en' 또는 저장된 값)
     let currentLang = localStorage.getItem('lang') || 'en';
-
-    // ⭐️ 줌/폰트 크기 변수
     let currentZoom = 1.0;
     const zoomStep = 0.1;
     let currentFontSize = 14;
@@ -298,21 +328,10 @@
 
     // --- 초기화 실행 ---
     applyTheme(currentTheme);
-    updateLangButton(currentLang); // ⭐️ 통합 버튼 업데이트
+    updateLangButton(currentLang);
     updateZoom(currentZoom);
     updateFontSize(currentFontSize);
     // ---------------------
-
-    // ⭐️ 로그 삭제 (가장 오래된 것 하나) 버튼 클릭 이벤트 리스너
-    deleteLogBtn.addEventListener('click', () => {
-        if (logs.length > 0) {
-            logs.shift();
-            renderLogs(logDiv, logs, false);
-            console.log("🗑️ 가장 오래된 로그 항목이 삭제되었습니다.");
-        } else {
-            console.log("로그가 없습니다.");
-        }
-    });
 
     // ⭐️ 로그 Clear (전체 삭제) 버튼 클릭 이벤트 리스너
     clearLogBtn.addEventListener('click', () => {
@@ -323,25 +342,50 @@
         }
     });
 
+    // ⭐️ 유틸리티 메뉴 토글 기능
+    utilityMenuToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const isHidden = utilityDropdownMenu.style.display === 'none' || utilityDropdownMenu.style.display === '';
+        utilityDropdownMenu.style.display = isHidden ? 'flex' : 'none';
 
-    // ⭐️ [수정] 언어 토글 버튼 클릭 이벤트
-    langToggleBtn.addEventListener("click", () => {
-        // 현재 언어에 따라 다음 언어를 결정 (en <-> ja 토글)
+        // 메뉴가 닫힐 때 설정 모달도 닫기
+        if (!isHidden) {
+            settingsModal.style.display = 'none';
+            settingsBtn.textContent = '⚙️ 설정 열기';
+        }
+    });
+
+    // ⭐️ 메뉴 외부 클릭 시 닫기
+    document.addEventListener('click', (event) => {
+        if (utilityDropdownMenu.style.display === 'flex' &&
+            !utilityDropdownMenu.contains(event.target) &&
+            event.target !== utilityMenuToggle) {
+
+            utilityDropdownMenu.style.display = 'none';
+            // 메뉴가 닫힐 때 설정 모달도 닫기
+            settingsModal.style.display = 'none';
+            settingsBtn.textContent = '⚙️ 설정 열기';
+        }
+    });
+
+
+    // ⭐️ 언어 토글 버튼 클릭 이벤트
+    langToggleBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
         const newLang = currentLang === "en" ? "ja" : "en";
 
         currentLang = newLang;
-        updateLangButton(newLang); // 버튼 UI 업데이트
+        updateLangButton(newLang);
         localStorage.setItem('lang', newLang);
 
-        // 서버로 언어 변경 이벤트 전송
         socket.emit("change_language", {
             language: newLang,
-            target: 'ko' // 목표 언어는 'ko'로 고정
+            target: 'ko'
         });
         console.log(`🎧 언어 변경 요청: ${newLang} -> ko`);
     });
 
-    // ⭐️ [수정] 언어 버튼 UI 업데이트 함수 (통합 버튼용)
+    // ⭐️ 언어 버튼 UI 업데이트 함수 (통합 버튼용)
     function updateLangButton(lang) {
         if (lang === "en") {
             langToggleBtn.textContent = "🇺🇸 영어 선택 중";
@@ -351,6 +395,22 @@
             langToggleBtn.textContent = "Language 🇯🇵/🇺🇸";
         }
     }
+
+    // ⭐️ 테마 토글 버튼 리스너
+    themeBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(newTheme);
+    });
+
+    // ⭐️ 설정 모달 토글 (드롭다운 메뉴 내부에 있음)
+    settingsBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const isHidden = settingsModal.style.display === 'none' || settingsModal.style.display === '';
+        settingsModal.style.display = isHidden ? 'block' : 'none';
+        settingsBtn.textContent = isHidden ? '➖ 설정 닫기' : '⚙️ 설정 열기';
+    });
+
 
     // ⭐️ 팝업 창 통신 함수 (2개)
     window.requestSpecificSummaryFromPopup = (sessionId) => {
@@ -408,7 +468,7 @@
         currentTheme = theme;
 
         if (summaryWindow && !summaryWindow.closed) {
-            // 팝업 창 테마 즉시 동기화 (간결화를 위해 스타일 변수를 사용하지 않고 직접 적용)
+            // 팝업 창 테마 즉시 동기화
             const doc = summaryWindow.document;
             const isLight = theme === 'light';
 
@@ -442,23 +502,6 @@
         }
     }
 
-    themeBtn.addEventListener('click', () => {
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        applyTheme(newTheme);
-    });
-
-    // ⭐️ 설정 모달 토글
-    settingsBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        settingsModal.style.display = settingsModal.style.display === 'block' ? 'none' : 'block';
-    });
-    document.addEventListener('click', (event) => {
-        if (settingsModal.style.display === 'block' &&
-            !settingsModal.contains(event.target) &&
-            event.target !== settingsBtn) {
-            settingsModal.style.display = 'none';
-        }
-    });
 
     // ⭐️ 팝업 창 열기 함수
     function openSummaryWindow() {
@@ -591,12 +634,12 @@
             const originalDiv = document.createElement("div");
             originalDiv.classList.add("original");
             originalDiv.textContent = data.original;
-            originalDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 폰트 크기 적용
+            originalDiv.style.fontSize = `${currentFontSize}px`;
 
             const translatedDiv = document.createElement("div");
             translatedDiv.classList.add("translated");
             translatedDiv.textContent = data.translated;
-            translatedDiv.style.fontSize = `${currentFontSize}px`; // ⭐️ 폰트 크기 적용
+            translatedDiv.style.fontSize = `${currentFontSize}px`;
 
             entry.appendChild(timeDiv);
             entry.appendChild(originalDiv);
