@@ -108,6 +108,7 @@
     #session-control-btn {
         /* '시작'일 때는 기본 버튼 색 (녹색/파랑) */
         background: var(--button-bg);
+        color: var(--text-color);
     }
     #session-control-btn.session-active {
         /* '중지' (활성) 상태일 때는 위험/중지 색 (빨강) */
@@ -116,6 +117,7 @@
     }
     #session-control-btn.session-active:hover {
         background-color: #d9534f;
+        transform: scale(1.05);
     }
 
 
@@ -131,7 +133,6 @@
         position: absolute;
 
         /* ⭐️ 오른쪽 최상단에 고정 */
-        /* 버튼 높이(약 36px)와 간격(14px)을 고려하여 50px로 설정 */
         top: 50px;
         right: 0;
 
@@ -142,62 +143,92 @@
         z-index: 20;
         flex-direction: column;
         gap: 10px;
-        /* transform: translateY(100%); 및 margin-top 제거 */
         border: 1px solid rgba(255,255,255,0.1);
+        width: 240px; /* 드롭다운 메뉴 너비 고정 */
     }
 
-    /* ⭐️ 드롭다운 메뉴 내부 버튼 스타일 조정 */
+    /* ⭐️ 드롭다운 메뉴 내부 버튼 스타일 조정 (언어/테마 버튼 기준) */
     #utility-dropdown-menu .all-btn {
-        width: 100%; /* 메뉴 너비 채우기 */
-        box-shadow: none; /* 메뉴 내에서는 그림자 제거 */
-        border-radius: 8px; /* 둥근 모양 완화 */
+        width: 100%;
+        box-shadow: none;
+        border-radius: 8px;
         padding: 10px 15px;
     }
 
-    /* ⭐️ 설정 메뉴 (모달) 스타일 - 메뉴 내부로 이동 */
-    #settings-modal {
-        display: none;
-        position: static;
-        width: auto;
-        padding: 15px 0 0 0;
-        background: transparent;
-        border: none;
-        box-shadow: none;
-        z-index: 20;
-    }
+    /* ⭐️ 설정 항목 스타일 (줌/폰트 컨트롤을 위해 재정의) */
     .setting-item {
-        margin-bottom: 15px;
-        padding: 0 15px;
+        margin-bottom: 5px;
+        padding: 0;
+    }
+    .setting-item:first-of-type {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
     }
     .setting-item:last-child {
         margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    .setting-item label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 0.9em;
+        font-weight: normal;
+        padding-left: 5px;
     }
 
-    /* ⭐️ 줌 컨트롤 스타일: 양옆 정렬된 한 줄 구조 */
+    /* ⭐️ 줌 컨트롤 스타일: 양옆 정렬된 한 줄 구조 (이전 요청의 최종 결과 복원) */
     .zoom-controls {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        gap: 10px;
+        align-items: stretch;
+        gap: 0;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--button-bg);
+        height: 40px;
     }
+
+    /* ⭐️ zoom-controls 내부 버튼 스타일 (1:2:1 비율 유지) */
     .zoom-controls button {
-        padding: 8px 12px;
+        padding: 0 10px;
+        height: 100%;
         background: var(--button-bg);
         border: none;
-        border-radius: 5px;
+        border-radius: 0;
         cursor: pointer;
         color: var(--text-color);
         font-weight: bold;
+        box-shadow: none;
+        transition: background 0.3s;
+
+        flex-grow: 1; /* 1/4 차지 */
+        flex-shrink: 0;
+        font-size: 1.0em;
+        width: auto;
     }
     .zoom-controls button:hover {
         background: var(--button-hover-bg);
+        transform: none;
     }
+
+    /* ⭐️ 설정 값 표시 (span) 스타일 (중앙 영역) */
     #zoom-level, #font-size-level {
-        font-size: 1.1em;
+        font-size: 1.0em;
         font-weight: bold;
-        padding: 5px;
         text-align: center;
-        flex-grow: 1;
+        flex-grow: 2; /* 2/4 차지 */
+        background: var(--menu-bg);
+        color: var(--text-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 5px;
+        height: 100%;
+        white-space: nowrap;
+
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     /* 콘텐츠 영역 */
@@ -288,25 +319,21 @@
 
                 <button id="toggle-theme" class="all-btn">🌙 다크 모드</button>
 
-                <button id="settings-btn" class="all-btn">⚙️ 설정 열기</button>
-
-                <div id="settings-modal">
-                    <div class="setting-item">
-                        <label>화면 확대/축소</label>
-                        <div class="zoom-controls">
-                            <button id="zoom-out-btn" class="all-btn">-</button>
-                            <span id="zoom-level">100%</span>
-                            <button id="zoom-in-btn" class="all-btn">+</button>
-                        </div>
+                <div class="setting-item">
+                    <label>화면 확대/축소</label>
+                    <div class="zoom-controls">
+                        <button id="zoom-out-btn">-</button>
+                        <span id="zoom-level">100%</span>
+                        <button id="zoom-in-btn">+</button>
                     </div>
+                </div>
 
-                    <div class="setting-item">
-                        <label>번역 로그 폰트 크기</label>
-                        <div class="zoom-controls">
-                            <button id="font-decrease-btn" class="all-btn">A-</button>
-                            <span id="font-size-level">기본</span>
-                            <button id="font-increase-btn" class="all-btn">A+</button>
-                        </div>
+                <div class="setting-item">
+                    <label>번역 로그 폰트 크기</label>
+                    <div class="zoom-controls">
+                        <button id="font-decrease-btn">A-</button>
+                        <span id="font-size-level">기본</span>
+                        <button id="font-increase-btn">A+</button>
                     </div>
                 </div>
             </div>
@@ -330,14 +357,14 @@
 
     // ⭐️ 통합된 메뉴 내부 버튼 변수
     const themeBtn = document.getElementById("toggle-theme");
-    const settingsBtn = document.getElementById("settings-btn");
+    // const settingsBtn = document.getElementById("settings-btn"); // ⭐️ 삭제됨
     const langToggleBtn = document.getElementById("lang-toggle-btn");
 
-    // ⭐️ 설정 모달 내부 변수
+    // ⭐️ 설정 요소 변수
     const zoomInBtn = document.getElementById("zoom-in-btn");
     const zoomOutBtn = document.getElementById("zoom-out-btn");
     const zoomLevelSpan = document.getElementById("zoom-level");
-    const settingsModal = document.getElementById("settings-modal");
+    // const settingsModal = document.getElementById("settings-modal"); // ⭐️ 삭제됨
     const fontDecreaseBtn = document.getElementById("font-decrease-btn");
     const fontIncreaseBtn = document.getElementById("font-increase-btn");
     const fontSizeLevelSpan = document.getElementById("font-size-level");
@@ -345,7 +372,7 @@
     // ⭐️ 로그 클리어 버튼 변수
     const clearLogBtn = document.getElementById("clear-log-btn");
 
-    // ⭐️ [수정] 세션 제어 버튼 변수
+    // ⭐️ 세션 제어 버튼 변수
     const sessionControlBtn = document.getElementById("session-control-btn");
 
     let summaryWindow = null;
@@ -363,13 +390,12 @@
     updateFontSize(currentFontSize);
     // ---------------------
 
-    // ⭐️ [신규] 시스템 메시지 추가 헬퍼 함수
+    // ⭐️ 시스템 메시지 추가 헬퍼 함수
     function addSystemMessage(message) {
         const msgDiv = document.createElement("div");
         msgDiv.classList.add("system-message");
         msgDiv.textContent = message;
         logDiv.appendChild(msgDiv);
-        // 새 메시지가 맨 아래에 보이도록 스크롤
         logDiv.scrollTop = logDiv.scrollHeight;
     }
 
@@ -389,7 +415,7 @@
         }
     });
 
-    // ⭐️ [수정] 세션 제어 버튼 클릭 이벤트 (로직 분리)
+    // ⭐️ 세션 제어 버튼 클릭 이벤트 (로직 분리)
     sessionControlBtn.addEventListener('click', () => {
         const currentText = sessionControlBtn.textContent;
 
@@ -440,11 +466,7 @@
         const isHidden = utilityDropdownMenu.style.display === 'none' || utilityDropdownMenu.style.display === '';
         utilityDropdownMenu.style.display = isHidden ? 'flex' : 'none';
 
-        // 메뉴가 닫힐 때 설정 모달도 닫기
-        if (!isHidden) {
-            settingsModal.style.display = 'none';
-            settingsBtn.textContent = '⚙️ 설정 열기';
-        }
+        // ⭐️ 설정 모달 관련 로직은 제거됨 ⭐️
     });
 
     // ⭐️ 메뉴 외부 클릭 시 닫기
@@ -454,9 +476,6 @@
             event.target !== utilityMenuToggle) {
 
             utilityDropdownMenu.style.display = 'none';
-            // 메뉴가 닫힐 때 설정 모달도 닫기
-            settingsModal.style.display = 'none';
-            settingsBtn.textContent = '⚙️ 설정 열기';
         }
     });
 
@@ -495,13 +514,13 @@
         applyTheme(newTheme);
     });
 
-    // ⭐️ 설정 모달 토글 (드롭다운 메뉴 내부에 있음)
-    settingsBtn.addEventListener('click', (event) => {
+    // ⭐️ 설정 모달 토글 로직 제거 ⭐️
+    /* settingsBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         const isHidden = settingsModal.style.display === 'none' || settingsModal.style.display === '';
         settingsModal.style.display = isHidden ? 'block' : 'none';
         settingsBtn.textContent = isHidden ? '➖ 설정 닫기' : '⚙️ 설정 열기';
-    });
+    }); */
 
 
     // ⭐️ 팝업 창 통신 함수 (2개)
@@ -711,7 +730,7 @@
         // (필요 시: "언어 변경 완료" 같은 알림 토스트 팝업)
     });
 
-    // ⭐️ [수정] 4. 서버로부터 새 세션이 시작되었음을 확인
+    // ⭐️ 4. 서버로부터 새 세션이 시작되었음을 확인
     socket.on("new_session_started", data => {
         console.log(`✅ 서버가 새 세션 시작 확인: ${data.session_id}`);
 
@@ -727,14 +746,14 @@
         addSystemMessage(`--- 새 세션 '${data.session_id}'이(가) 시작되었습니다. ---`);
     });
 
-    // ⭐️ [신규] 5. 세션 시작 실패 시
+    // ⭐️ 5. 세션 시작 실패 시
     socket.on("session_start_failed", data => {
         console.error(`❌ 세션 시작 실패: ${data.error}`);
         addSystemMessage(`[오류] 세션 시작 실패: ${data.error}`);
         // (버튼 텍스트는 'Start Translation'으로 유지됨)
     });
 
-    // ⭐️ [신규] 6. 서버로부터 세션이 중지되었음을 확인
+    // ⭐️ 6. 서버로부터 세션이 중지되었음을 확인
     socket.on("session_stopped", data => {
         console.log(`✅ 서버가 세션 중지 확인: ${data.message}`);
 
