@@ -8,6 +8,12 @@ from deep_translator import GoogleTranslator
 from datetime import datetime, timezone, timedelta
 import traceback
 import noisereduce as nr
+import asyncio
+import edge_tts  # 🔊 추가됨 — Edge TTS
+import tempfile
+import os
+import soundfile as sf
+
 
 import config
 from db_handler import insert_transcript
@@ -31,6 +37,79 @@ def translate_text_local(text, target_lang=TARGET_LANG):
     except Exception as e:
         print(f"⚠️ 번역 실패: {e}")
         return ""
+
+# --- 🔊 Edge-TTS 비동기 음성 출력 (병렬 실행 가능) ---
+async def speak_text_async(text, target_lang=TARGET_LANG):
+    """비동기 음성 출력"""
+    if not text.strip():
+        return
+
+    try:
+        # 언어별 음성 선택
+        voice_map = {
+            "ko": "ko-KR-SunHiNeural",
+            "en": "en-US-JennyNeural",
+            "ja": "ja-JP-NanamiNeural",
+            "zh-CN": "zh-CN-XiaoxiaoNeural",
+            "de": "de-DE-KatjaNeural",
+            "fr": "fr-FR-DeniseNeural"
+        }
+        voice = voice_map.get(target_lang, "en-US-JennyNeural")
+
+        # 임시 파일 생성
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+            output_path = tmp.name
+
+        communicate = edge_tts.Communicate(text, voice=voice)
+        await communicate.save(output_path)
+
+        # 재생을 별도 스레드로 수행 → Whisper 인식 중에도 재생됨
+        def play_audio_file():
+            try:
+                data, samplerate = sf.read(output_path)
+                sd.play(data, samplerate)
+                sd.wait()
+            except Exception as e:
+                print(f"⚠️ 음성 재생 오류: {e}")
+            finally:
+                try:
+                    os.remove(output_path)
+                except:
+                    pass
+
+        # 비동기로 실행
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, play_audio_file)
+
+    except Exception as e:
+        print(f"⚠️ 음성 출력 실패: {e}")
+
+
+def speak_text(text, target_lang=TARGET_LANG):
+    """스레드 환경에서도 안전하게 Edge-TTS 실행"""
+    if not text.strip():
+        return
+
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # 이미 asyncio 루프가 실행 중이라면 비동기로 태스크 생성
+            asyncio.create_task(speak_text_async(text, target_lang))
+        else:
+            # 현재 스레드에 이벤트 루프가 없으면 새로 생성
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            new_loop.run_until_complete(speak_text_async(text, target_lang))
+            new_loop.close()
+
+    except Exception as e:
+        print(f"⚠️ speak_text 실행 오류: {e}")
+
+
 
 # --- 문장 완성 감지 (구두점 + 무음 기반) ---
 def is_sentence_complete(text):
@@ -117,6 +196,9 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                     print(f"✅ 완성 문장: {sentence_buffer}")
                                     print(f"🌐 번역 결과: {translated}\n")
 
+                                    # 🔊 번역된 문장 음성 출력
+                                    speak_text(translated, TARGET_LANG)
+
                                     socketio.emit('partial_translation', {
                                         'original': sentence_buffer.strip(),
                                         'translated': translated,
@@ -139,11 +221,9 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                 max_val = np.max(np.abs(reduced))
 
                                 if max_val > 0:
-                                    # 신호가 있을 때만 정규화
                                     normalized_audio = reduced / max_val
                                 else:
-                                    # 완전한 무음인 경우 (max_val == 0)
-                                    normalized_audio = reduced  # (이미 0으로 채워진 배열)
+                                    normalized_audio = reduced
 
                                 reduced_int16 = np.int16(normalized_audio * 32767)
                                 audio_float32 = reduced_int16.astype(np.float32) / 32768.0
@@ -153,16 +233,14 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                 audio_float32,
                                 language=config.LANGUAGE,
                                 beam_size=BEAM_SIZE,
-                                # --- ⭐️ 환각(쓰레기값) 억제 옵션 추가 ---
-                                vad_filter=True,  # VAD 필터를 사용해 음성이 없는 세그먼트를 제거
-                                no_speech_threshold=0.6,  # 이 값 이하의 '음성 확률'은 무시
-                                log_prob_threshold=-1.0,  # 신뢰도가 너무 낮은 토큰(단어)을 억제
-                                condition_on_previous_text=False  # 이전 텍스트에 덜 의존하여 반복 환각을 줄임
+                                vad_filter=True,
+                                no_speech_threshold=0.6,
+                                log_prob_threshold=-1.0,
+                                condition_on_previous_text=False
                             )
                             partial_text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
 
                             if partial_text and partial_text != previous_text:
-                                # ✅ 새로 추가된 부분만 추출
                                 new_part = partial_text.replace(previous_text, "").strip()
                                 if new_part:
                                     sentence_buffer += " " + new_part
@@ -177,6 +255,9 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                     translated = translate_text_local(sentence_buffer)
                                     print(f"✅ 완성 문장: {sentence_buffer}")
                                     print(f"🌐 번역 결과: {translated}\n")
+
+                                    # 🔊 번역된 문장 음성 출력
+                                    speak_text(translated, TARGET_LANG)
 
                                     socketio.emit('partial_translation', {
                                         'original': sentence_buffer.strip(),
