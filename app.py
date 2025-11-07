@@ -186,23 +186,32 @@ def handle_rename_session(data):
         print(f"⚠️ 이름 변경 처리 중 심각한 오류: {e}")
 
 
-# --- ⭐️ [신규] 새 세션 시작 요청 핸들러 ---
-@socketio.on("request_new_session")
-def handle_new_session_request():
-    """클라이언트의 새 세션 시작 요청을 처리 (오디오 스레드 재시작)"""
-    print("🔄 (새 세션) 요청 수신... 오디오 스레드를 재시작합니다.")
+# --- ⭐️ [신규] 번역 세션 시작 요청 핸들러 ---
+@socketio.on("start_translation_session")
+def handle_start_session(data):
+    """
+    클라이언트가 "시작" 버튼을 누르고 세션 ID를 입력했을 때 호출됩니다.
+    """
+    session_id = data.get("session_id")
+    if not session_id or not session_id.strip():
+        print("⚠️ [Session] 세션 ID가 없이 시작 요청을 받았습니다.")
+        socketio.emit("session_start_failed", {"error": "세션 이름이 필요합니다."})
+        return
+
+    print(f"🔄 (세션 시작) 요청 수신... ID: {session_id}")
     # (주의: 이 함수는 SocketIO 스레드에서 호출되므로,
     # start_new_audio_session 내의 .join()이 현재 스레드를 막을 수 있습니다.
     # 더 복잡한 시스템에서는 이를 별도 스레드로 분리해야 할 수 있으나,
     # 여기서는 단순성을 위해 직접 호출합니다.)
-    start_new_audio_session()
+    start_new_audio_session(session_id)
 
 
 # --- ⭐️ [수정] Whisper 세션 시작/재시작 함수 ---
-def start_new_audio_session():
+def start_new_audio_session(session_id):
     """
-    (수정) 기존 오디오 스레드를 중지하고 새 스레드를 시작합니다.
-    서버 시작 시 또는 '새 세션' 요청 시 호출됩니다.
+    (수정)
+    1. `session_id`를 인자로 받습니다.
+    2. 기존 오디오 스레드를 중지하고 새 스레드를 시작합니다.
     """
     global current_audio_thread, current_stop_event
 
@@ -219,8 +228,7 @@ def start_new_audio_session():
         else:
             print("✅ [Session] 이전 스레드 중지 완료.")
 
-    # 3. 새 세션 ID 및 새 stop_event 생성
-    session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # 3. 새 stop_event 생성 (세션 ID는 인자로 받은 것 사용)
     current_stop_event = threading.Event()
 
     print(f"\n🎬 [새 세션 시작] 세션 ID: {session_id}\n")
@@ -257,9 +265,10 @@ if __name__ == "__main__":
     # KoBART 모델 로드 스레드 시작
     threading.Thread(target=init_summary_model, daemon=True).start()
 
-    # ⭐️ [수정] 서버 시작 시 'start_new_audio_session' 함수를 호출
+    # ⭐️ [수정] 서버 시작 시 자동 오디오 시작 스레드 제거
     print(f"🌍 Socket.IO 서버 시작: http://{HOST}:{PORT} 에서 접속 가능")
-    threading.Thread(target=start_new_audio_session, daemon=True).start()
+    print("✅ (준비 완료) 클라이언트의 '번역 시작' 요청을 대기합니다...")
+    # ⭐️ (제거) threading.Thread(target=start_new_audio_session, daemon=True).start()
 
     # Socket.IO 서버 실행 (메인 스레드)
     socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True)

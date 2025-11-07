@@ -104,12 +104,12 @@
         background: var(--clear-hover-bg);
     }
 
-    /* ⭐️ [신규] 새 세션 버튼 스타일 (눈에 띄게) */
-    #new-session-btn {
+    /* ⭐️ [수정] 세션 제어 버튼 스타일 */
+    #session-control-btn {
         background-color: #ff6347; /* (토마토 색상) */
         color: #fff;
     }
-    #new-session-btn:hover {
+    #session-control-btn:hover {
         background-color: #d9534f;
     }
 
@@ -214,6 +214,17 @@
         transition: background 0.3s;
     }
 
+    /* ⭐️ [신규] 시스템 메시지 스타일 */
+    .system-message {
+        text-align: center;
+        font-style: italic;
+        color: var(--timestamp-color);
+        width: 100%;
+        font-size: 0.9em;
+        margin: 5px 0;
+        font-weight: bold;
+    }
+
     /* 로그 항목 스타일 (폰트 크기 변수 적용) */
     .log-entry {
         display:flex;
@@ -259,7 +270,7 @@
     <div id="button-container">
         <div id="left-buttons">
             <button id="clear-log-btn" class="all-btn">Clear!</button>
-            <button id="new-session-btn" class="all-btn">New Session</button>
+            <button id="session-control-btn" class="all-btn">Start Translation</button>
         </div>
 
         <div id="right-buttons">
@@ -329,8 +340,8 @@
     // ⭐️ 로그 클리어 버튼 변수
     const clearLogBtn = document.getElementById("clear-log-btn");
 
-    // ⭐️ [신규] 새 세션 버튼 변수
-    const newSessionBtn = document.getElementById("new-session-btn");
+    // ⭐️ [수정] 세션 제어 버튼 변수
+    const sessionControlBtn = document.getElementById("session-control-btn");
 
     let summaryWindow = null;
     let currentTheme = localStorage.getItem('theme') || 'dark';
@@ -347,26 +358,57 @@
     updateFontSize(currentFontSize);
     // ---------------------
 
+    // ⭐️ [신규] 시스템 메시지 추가 헬퍼 함수
+    function addSystemMessage(message) {
+        const msgDiv = document.createElement("div");
+        msgDiv.classList.add("system-message");
+        msgDiv.textContent = message;
+        logDiv.appendChild(msgDiv);
+        // 새 메시지가 맨 아래에 보이도록 스크롤
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // --- 페이지 로드 시 초기 메시지 ---
+    document.addEventListener("DOMContentLoaded", () => {
+        addSystemMessage("서버 준비 완료. 'Start Translation'을 눌러 세션을 시작하세요.");
+    });
+
+
     // ⭐️ 로그 Clear (전체 삭제) 버튼 클릭 이벤트 리스너
     clearLogBtn.addEventListener('click', () => {
         if (confirm("정말로 모든 로그를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
             logs.length = 0;
             renderLogs(logDiv, logs, false);
             console.log("🔥 모든 로그 항목이 삭제되었습니다.");
+            addSystemMessage("로그가 수동으로 삭제되었습니다.");
         }
     });
 
-    // ⭐️ [신규] 새 세션 시작 버튼 클릭 이벤트
-    newSessionBtn.addEventListener('click', () => {
-        if (confirm("새로운 세션을 시작하시겠습니까? 현재 화면의 로그가 모두 지워집니다.")) {
-            // 1. 즉시 클라이언트 로그를 비웁니다.
-            logs.length = 0;
-            renderLogs(logDiv, logs, false);
-            // 2. 서버에 새 세션 시작을 요청합니다.
-            socket.emit("request_new_session", {});
-            console.log("🚀 새 세션 시작 요청 전송");
+    // ⭐️ [수정] 세션 제어 버튼 클릭 이벤트
+    sessionControlBtn.addEventListener('click', () => {
+        const currentText = sessionControlBtn.textContent;
+        const promptMessage = (currentText === 'Start Translation')
+            ? '새 세션의 이름을 입력하세요:'
+            : '현재 세션을 종료하고 시작할 새 세션의 이름을 입력하세요:';
+
+        const sessionId = prompt(promptMessage);
+
+        if (sessionId && sessionId.trim() !== "") {
+            const trimmedId = sessionId.trim();
+            console.log(`🚀 'start_translation_session' 요청 전송 (ID: ${trimmedId})`);
+
+            // 1. 새 세션이 시작될 것임을 알리는 시스템 메시지 추가
+            addSystemMessage(`'${trimmedId}' 세션 시작 요청 중... (서버 응답 대기)`);
+
+            // 2. 서버에 세션 시작 요청 (이벤트 이름 수정)
+            socket.emit("start_translation_session", {
+                session_id: trimmedId
+            });
+        } else {
+            console.log("세션 시작 취소.");
         }
     });
+
 
     // ⭐️ 유틸리티 메뉴 토글 기능
     utilityMenuToggle.addEventListener('click', (event) => {
@@ -645,15 +687,25 @@
         // (필요 시: "언어 변경 완료" 같은 알림 토스트 팝업)
     });
 
-    // ⭐️ [신규] 4. 서버로부터 새 세션이 시작되었음을 확인
+    // ⭐️ [수정] 4. 서버로부터 새 세션이 시작되었음을 확인
     socket.on("new_session_started", data => {
         console.log(`✅ 서버가 새 세션 시작 확인: ${data.session_id}`);
-        // (New Session 버튼 클릭 시 이미 logs.length = 0를 실행했지만,
-        //  혹시 모를 동기화를 위해 서버 확인 시 한 번 더 실행)
+
+        // 1. 로컬 로그 배열 비우기
         logs.length = 0;
         renderLogs(logDiv, logs, false);
-        // (필요 시: 사용자에게 알림)
-        // alert(data.message);
+
+        // 2. 버튼 텍스트 변경
+        sessionControlBtn.textContent = "End & Start New Session";
+
+        // 3. 시스템 메시지 추가
+        addSystemMessage(`--- 새 세션 '${data.session_id}'이(가) 시작되었습니다. ---`);
+    });
+
+    // ⭐️ [신규] 5. 세션 시작 실패 시
+    socket.on("session_start_failed", data => {
+        console.error(`❌ 세션 시작 실패: ${data.error}`);
+        addSystemMessage(`[오류] 세션 시작 실패: ${data.error}`);
     });
 
 
@@ -685,7 +737,11 @@
             container.appendChild(entry);
             setTimeout(() => entry.classList.add("show"), 10);
         });
-        if(scrollToBottom) container.scrollTop = container.scrollHeight;
+
+        // (수정) 스크롤은 렌더링이 완료된 후에만 수행
+        if(scrollToBottom) {
+            container.scrollTop = container.scrollHeight;
+        }
     }
 </script>
 </body>
