@@ -35,7 +35,7 @@ INPUT_DEVICE_INDEX = None
 
 # ⭐️ [수정] Silero-VAD 설정으로 변경
 # (Silero-VAD) VAD 민감도 임계값 (0~1 사이, 낮을수록 민감)
-VAD_THRESHOLD = 0.5
+VAD_THRESHOLD = 0.45
 
 # (Silero VAD는 16kHz에서 512, 1024, 1536 샘플 권장)
 # 512 샘플 = 32ms
