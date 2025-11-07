@@ -26,7 +26,7 @@ PORT = 5000
 
 # --- 오디오 입력 장치 ---
 # 특정 장치를 지정하지 않으면 자동 기본 입력 사용
-INPUT_DEVICE_INDEX = "CABLE Output(VB-Audio Virtual C"
+INPUT_DEVICE_INDEX = None
 # 예: INPUT_DEVICE_INDEX = 12
 
 # ============================================
