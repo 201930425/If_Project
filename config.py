@@ -33,20 +33,24 @@ INPUT_DEVICE_INDEX = None
 # 🎙️ 음성 감지 (VAD, Voice Activity Detection)
 # ============================================
 
-# 0~3 (민감도 높을수록 잘 감지하지만 잡음 포함 가능)
-VAD_MODE = 1
+# ⭐️ [수정] Silero-VAD 설정으로 변경
+# (Silero-VAD) VAD 민감도 임계값 (0~1 사이, 낮을수록 민감)
+VAD_THRESHOLD = 0.45
 
-# VAD 분석 단위 (ms)
-# webrtcvad는 10, 20, 30ms만 지원
-FRAME_DURATION_MS = 30
+# (Silero VAD는 16kHz에서 512, 1024, 1536 샘플 권장)
+# 512 샘플 = 32ms
+VAD_FRAME_SIZE = 512 # 512 샘플 (32ms)
+
+# ❌ (제거) VAD_MODE = 1
+# ❌ (제거) FRAME_DURATION_MS = 30
 
 # 말이 끝났다고 판단할 무음 지속 시간(ms)
-# 너무 길면 문장 완성이 늦어지고, 너무 짧으면 끊김 발생
 SILENCE_TIMEOUT_MS = 700
 
 # --- 오디오 스트리밍 설정 ---
 RATE = 16000
-FRAME_DURATION = FRAME_DURATION_MS
-FRAME_SIZE = int(RATE * FRAME_DURATION / 1000)
+# ⭐️ [수정] FRAME_SIZE를 VAD_FRAME_SIZE로 교체
+FRAME_SIZE = VAD_FRAME_SIZE
+# ❌ (제거) FRAME_DURATION = FRAME_DURATION_MS
 CHUNK_DURATION_SEC = 3.0  # ✅ 청크 3초 단위로 변경
 CHUNK_SIZE = int(RATE * CHUNK_DURATION_SEC)

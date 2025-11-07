@@ -2,7 +2,8 @@ import sounddevice as sd
 import numpy as np
 import queue
 import time
-import webrtcvad
+# import webrtcvad # ❌ (제거)
+import torch  # ⭐️ [추가] Silero VAD에 필요
 from faster_whisper import WhisperModel
 from deep_translator import GoogleTranslator
 from datetime import datetime, timezone, timedelta
@@ -14,13 +15,30 @@ from db_handler import insert_transcript
 from config import (
     MODEL_TYPE, LANGUAGE, TARGET_LANG,
     BEAM_SIZE, INPUT_DEVICE_INDEX, FRAME_SIZE,
-    VAD_MODE, FRAME_DURATION_MS, RATE, CHUNK_DURATION_SEC, CHUNK_SIZE
+    # ⭐️ [수정] VAD_THRESHOLD 임포트
+    VAD_THRESHOLD, RATE, CHUNK_DURATION_SEC, CHUNK_SIZE
 )
 
 print(f"🎧 Whisper 모델({MODEL_TYPE}) 로드 중...")
 model = WhisperModel(MODEL_TYPE, device="cpu", compute_type="int8")
-vad = webrtcvad.Vad(VAD_MODE)
+
+# ⭐️ [수정] Silero VAD 모델 로드
+print("🎧 Silero VAD 모델 로드 중... (torch 필요)")
+try:
+    # 'silero_vad.onnx' 모델을 로드 (더 빠름)
+    vad_model, _ = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+                                  model='silero_vad',
+                                  force_reload=False,
+                                  onnx=True)
+    print("✅ Silero VAD (ONNX) 모델 로드 완료.")
+except Exception as e:
+    print(f"⚠️ Silero VAD 모델 로드 실패: {e}")
+    print("torch, torchaudio가 설치되었는지, 인터넷 연결이 되어있는지 확인하세요.")
+    vad_model = None
+
+# ❌ (제거) vad = webrtcvad.Vad(VAD_MODE)
 audio_q = queue.Queue()
+
 
 # --- 번역 ---
 def translate_text_local(text, target_lang=TARGET_LANG):
@@ -32,6 +50,7 @@ def translate_text_local(text, target_lang=TARGET_LANG):
         print(f"⚠️ 번역 실패: {e}")
         return ""
 
+
 # --- 문장 완성 감지 (구두점 + 무음 기반) ---
 def is_sentence_complete(text):
     """문장이 끝났는지 판별"""
@@ -39,6 +58,48 @@ def is_sentence_complete(text):
         return False
     text = text.strip()
     return text.endswith((".", "!", "?", "요", "다", "죠", "네", "습니다"))
+
+
+# ⭐️ [신규] Silero VAD용 헬퍼 함수 (버그 수정)
+def is_chunk_speech(data_chunk, vad_model, rate=RATE, frame_size=FRAME_SIZE, threshold=VAD_THRESHOLD):
+    """
+    긴 오디오 청크(data_chunk)를 VAD_FRAME_SIZE(512) 샘플 크기로 나누어
+    하나라도 음성으로 감지되면 True를 반환합니다.
+    """
+    if not vad_model:
+        print("⚠️ VAD 모델이 없어 음성으로 간주합니다.")
+        return True  # VAD 모델 로드 실패 시 무조건 음성으로 처리
+
+    # data_chunk는 (N, 1) 형태일 수 있으므로 flatten()
+    data_flat = data_chunk.flatten()
+
+    # 512 샘플(VAD_FRAME_SIZE) 단위로 반복
+    for i in range(0, len(data_flat), frame_size):
+        frame = data_flat[i: i + frame_size]
+
+        # ⭐️ (중요) 마지막 프레임이 512보다 작으면 VAD가 오류를 일으킴
+        if len(frame) < frame_size:
+            continue
+
+        # 1. int16 numpy -> float32 tensor
+        audio_float32_tensor = torch.from_numpy(frame.astype(np.float32) / 32768.0)
+
+        # 2. VAD 모델 실행 (음성 확률 반환)
+        try:
+            # ⭐️ .item()은 tensor(0.xx) -> 0.xx (float)로 변환
+            speech_prob = vad_model(audio_float32_tensor, rate).item()
+
+            # 3. 임계값과 비교
+            if speech_prob >= threshold:
+                return True  # 음성 감지됨
+        except Exception as e:
+            # CHUNK_SIZE가 512의 배수가 아닌 경우 등 예외 처리
+            # print(f"VAD 프레임 처리 오류 (무시): {e}")
+            pass
+
+            # 루프가 끝날 때까지 음성이 감지되지 않음
+    return False
+
 
 # --- 오디오 콜백 ---
 def audio_callback(indata, frames, time_, status):
@@ -49,26 +110,9 @@ def audio_callback(indata, frames, time_, status):
     except Exception:
         traceback.print_exc()
 
-# --- 음성 감지 ---
-def is_speech_chunk(data_chunk, rate=RATE, frame_ms=30):
-    """RMS + VAD 기반 음성 감지"""
-    frame_length = int(rate * frame_ms / 1000)
-    bytes_data = data_chunk.tobytes()
-    speech_frames = 0
-    frame_count = 0
 
-    for i in range(0, len(bytes_data), frame_length * 2):
-        frame = bytes_data[i:i + frame_length * 2]
-        if len(frame) < frame_length * 2:
-            break
-        frame_count += 1
-        try:
-            if vad.is_speech(frame, rate):
-                speech_frames += 1
-        except webrtcvad.Error:
-            continue
+# --- ❌ (제거) 'is_speech_chunk' (webrtcvad) ---
 
-    return speech_frames > 0
 
 # --- 메인 루프 ---
 def main_audio_streaming(session_id, socketio, stop_event=None):
@@ -82,12 +126,12 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
 
     try:
         with sd.InputStream(
-            device=INPUT_DEVICE_INDEX,
-            samplerate=RATE,
-            blocksize=FRAME_SIZE,
-            dtype='int16',
-            channels=1,
-            callback=audio_callback
+                device=INPUT_DEVICE_INDEX,
+                samplerate=RATE,
+                blocksize=FRAME_SIZE,  # ⭐️ config.py에서 512로 변경됨
+                dtype='int16',
+                channels=1,
+                callback=audio_callback
         ):
             print("🎤 실시간 음성 인식 시작...")
 
@@ -105,8 +149,10 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                         buffer = buffer[CHUNK_SIZE:]
 
                         try:
-                            # 🔉 음성 감지
-                            if not is_speech_chunk(data_chunk, RATE):
+                            # 🔉 [수정] 음성 감지 (Silero VAD 헬퍼 함수 사용)
+                            # ⭐️ data_chunk(48000)를 헬퍼 함수로 전달
+                            if not is_chunk_speech(data_chunk, vad_model, RATE, FRAME_SIZE, VAD_THRESHOLD):
+                                # (무음으로 간주 - 기존 'if not is_speech_chunk' 로직)
                                 silence_counter += 1
                                 if silence_counter >= 2 and sentence_buffer.strip():
                                     # ✅ 1.5초 이상 무음 → 문장 완료로 간주
@@ -128,8 +174,12 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                     sentence_buffer = ""
                                     previous_text = ""
                                     silence_counter = 0
+
+                                # ⭐️ (중요) 원본 로직과 동일하게, 음성이 아니면 번역/인식 스킵
                                 continue
+
                             else:
+                                # (음성으로 간주 - 기존 'else' 블록)
                                 silence_counter = 0
 
                                 # 🔉 노이즈 제거
@@ -148,14 +198,14 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                 reduced_int16 = np.int16(normalized_audio * 32767)
                                 audio_float32 = reduced_int16.astype(np.float32) / 32768.0
 
-                            # 🧠 Whisper 인식
+                            # 🧠 Whisper 인식 (무음이 아닐 때만 이쪽으로 넘어옴)
                             segments, _ = model.transcribe(
                                 audio_float32,
                                 language=config.LANGUAGE,
                                 beam_size=BEAM_SIZE,
                                 # --- ⭐️ 환각(쓰레기값) 억제 옵션 추가 ---
                                 vad_filter=True,  # VAD 필터를 사용해 음성이 없는 세그먼트를 제거
-                                no_speech_threshold=0.6,  # 이 값 이하의 '음성 확률'은 무시
+                                no_speech_threshold=0.4,  # 이 값 이하의 '음성 확률'은 무시
                                 log_prob_threshold=-1.0,  # 신뢰도가 너무 낮은 토큰(단어)을 억제
                                 condition_on_previous_text=False  # 이전 텍스트에 덜 의존하여 반복 환각을 줄임
                             )
