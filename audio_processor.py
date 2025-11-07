@@ -15,22 +15,25 @@ from db_handler import insert_transcript
 from config import (
     MODEL_TYPE, LANGUAGE, TARGET_LANG,
     BEAM_SIZE, INPUT_DEVICE_INDEX, FRAME_SIZE,
-    # ⭐️ [수정] VAD_THRESHOLD 임포트
     VAD_THRESHOLD, RATE, CHUNK_DURATION_SEC, CHUNK_SIZE
 )
 
 print(f"🎧 Whisper 모델({MODEL_TYPE}) 로드 중...")
-model = WhisperModel(MODEL_TYPE, device="cpu", compute_type="int8")
+# ⭐️ [수정] float16 -> int8_float16 (GTX 1050 호환 모드)
+model = WhisperModel(MODEL_TYPE, device="cuda", compute_type="int8")
+print("✅ Whisper 모델 로드 완료 (Device: CUDA/GPU)")
 
-# ⭐️ [수정] Silero VAD 모델 로드
+
+# ⭐️ Silero VAD 모델 로드
 print("🎧 Silero VAD 모델 로드 중... (torch 필요)")
 try:
-    # 'silero_vad.onnx' 모델을 로드 (더 빠름)
     vad_model, _ = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                                   model='silero_vad',
                                   force_reload=False,
                                   onnx=True)
-    print("✅ Silero VAD (ONNX) 모델 로드 완료.")
+    # ⭐️ [제거] 이 라인을 삭제하거나 주석 처리하세요.
+    # vad_model.to("cuda")
+    print("✅ Silero VAD (ONNX) 모델 로드 완료 (Device: CPU).") # ⭐️ 로그 수정
 except Exception as e:
     print(f"⚠️ Silero VAD 모델 로드 실패: {e}")
     print("torch, torchaudio가 설치되었는지, 인터넷 연결이 되어있는지 확인하세요.")

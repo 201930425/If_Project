@@ -69,9 +69,9 @@ def fetch_data_from_db(session_id=None):
         if not text_list:
             return ""
 
-        # "\n" (줄바꿈) 대신 " " (공백)으로 문장을 연결합니다.
-        # 'gogamza' (뉴스) 모델은 하나의 긴 문단을 예상합니다.
-        return " ".join(text_list)
+        # ⭐️ [수정] "\n" (줄바꿈)으로 문장을 연결합니다.
+        # KoBART 모델이 문맥을 더 잘 파악할 수 있습니다.
+        return "\n".join(text_list)
     except Exception as e:
         print(f"⚠️ DB 읽기 실패: {e}")
         return ""
