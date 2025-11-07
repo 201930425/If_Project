@@ -106,10 +106,15 @@
 
     /* ⭐️ [수정] 세션 제어 버튼 스타일 */
     #session-control-btn {
-        background-color: #ff6347; /* (토마토 색상) */
+        /* '시작'일 때는 기본 버튼 색 (녹색/파랑) */
+        background: var(--button-bg);
+    }
+    #session-control-btn.session-active {
+        /* '중지' (활성) 상태일 때는 위험/중지 색 (빨강) */
+        background-color: #ff6347;
         color: #fff;
     }
-    #session-control-btn:hover {
+    #session-control-btn.session-active:hover {
         background-color: #d9534f;
     }
 
@@ -384,30 +389,49 @@
         }
     });
 
-    // ⭐️ [수정] 세션 제어 버튼 클릭 이벤트
+    // ⭐️ [수정] 세션 제어 버튼 클릭 이벤트 (로직 분리)
     sessionControlBtn.addEventListener('click', () => {
         const currentText = sessionControlBtn.textContent;
-        const promptMessage = (currentText === 'Start Translation')
-            ? '새 세션의 이름을 입력하세요:'
-            : '현재 세션을 종료하고 시작할 새 세션의 이름을 입력하세요:';
 
-        const sessionId = prompt(promptMessage);
+        if (currentText === 'Start Translation') {
+            // --- 1. 시작 로직 ---
+            const promptMessage = '새 세션의 이름을 입력하세요:';
+            // (오늘 날짜와 시간으로 기본값 제안)
+            const defaultName = new Date().toLocalISOString().slice(0, 16).replace('T', '_');
+            const sessionId = prompt(promptMessage, defaultName);
 
-        if (sessionId && sessionId.trim() !== "") {
-            const trimmedId = sessionId.trim();
-            console.log(`🚀 'start_translation_session' 요청 전송 (ID: ${trimmedId})`);
+            if (sessionId && sessionId.trim() !== "") {
+                const trimmedId = sessionId.trim();
+                console.log(`🚀 'start_translation_session' 요청 전송 (ID: ${trimmedId})`);
+                addSystemMessage(`'${trimmedId}' 세션 시작 요청 중... (서버 응답 대기)`);
+                socket.emit("start_translation_session", {
+                    session_id: trimmedId
+                });
+            } else {
+                console.log("세션 시작 취소.");
+            }
 
-            // 1. 새 세션이 시작될 것임을 알리는 시스템 메시지 추가
-            addSystemMessage(`'${trimmedId}' 세션 시작 요청 중... (서버 응답 대기)`);
-
-            // 2. 서버에 세션 시작 요청 (이벤트 이름 수정)
-            socket.emit("start_translation_session", {
-                session_id: trimmedId
-            });
-        } else {
-            console.log("세션 시작 취소.");
+        } else if (currentText === 'End Session') {
+            // --- 2. 중지 로직 ---
+            if (confirm("현재 번역 세션을 중지하시겠습니까?")) {
+                console.log("🚀 'stop_translation_session' 요청 전송");
+                addSystemMessage("세션 중지 요청 중...");
+                socket.emit("stop_translation_session", {});
+            }
         }
     });
+
+    // (Helper for prompt)
+    Date.prototype.toLocalISOString = function() {
+        var tzo = -this.getTimezoneOffset(),
+            dif = tzo >= 0 ? '+' : '-',
+            pad = function(num) { return (num < 10 ? '0' : '') + num; };
+        return this.getFullYear() +
+            '-' + pad(this.getMonth() + 1) +
+            '-' + pad(this.getDate()) +
+            'T' + pad(this.getHours()) +
+            ':' + pad(this.getMinutes());
+    }
 
 
     // ⭐️ 유틸리티 메뉴 토글 기능
@@ -695,8 +719,9 @@
         logs.length = 0;
         renderLogs(logDiv, logs, false);
 
-        // 2. 버튼 텍스트 변경
-        sessionControlBtn.textContent = "End & Start New Session";
+        // 2. 버튼 텍스트와 스타일 변경 (활성 상태)
+        sessionControlBtn.textContent = "End Session";
+        sessionControlBtn.classList.add("session-active");
 
         // 3. 시스템 메시지 추가
         addSystemMessage(`--- 새 세션 '${data.session_id}'이(가) 시작되었습니다. ---`);
@@ -706,6 +731,19 @@
     socket.on("session_start_failed", data => {
         console.error(`❌ 세션 시작 실패: ${data.error}`);
         addSystemMessage(`[오류] 세션 시작 실패: ${data.error}`);
+        // (버튼 텍스트는 'Start Translation'으로 유지됨)
+    });
+
+    // ⭐️ [신규] 6. 서버로부터 세션이 중지되었음을 확인
+    socket.on("session_stopped", data => {
+        console.log(`✅ 서버가 세션 중지 확인: ${data.message}`);
+
+        // 1. 버튼 텍스트와 스타일 복원 (비활성 상태)
+        sessionControlBtn.textContent = "Start Translation";
+        sessionControlBtn.classList.remove("session-active");
+
+        // 2. 시스템 메시지 추가
+        addSystemMessage(`--- ${data.message} ---`);
     });
 
 

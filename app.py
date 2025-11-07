@@ -27,7 +27,7 @@ def index():
 # --- 클라이언트 연결/해제 로그 ---
 @socketio.on("connect")
 def handle_connect():
-    print("✅ 클라이언트 연결됨 (웹 브라우저 접속 확인)")
+    print("✅ 클라이언트 연결됨 (웹 브저 접속 확인)")
 
 
 @socketio.on("disconnect")
@@ -199,11 +199,49 @@ def handle_start_session(data):
         return
 
     print(f"🔄 (세션 시작) 요청 수신... ID: {session_id}")
-    # (주의: 이 함수는 SocketIO 스레드에서 호출되므로,
-    # start_new_audio_session 내의 .join()이 현재 스레드를 막을 수 있습니다.
-    # 더 복잡한 시스템에서는 이를 별도 스레드로 분리해야 할 수 있으나,
-    # 여기서는 단순성을 위해 직접 호출합니다.)
     start_new_audio_session(session_id)
+
+
+# --- ⭐️ [신규] 번역 세션 중지 요청 핸들러 ---
+@socketio.on("stop_translation_session")
+def handle_stop_session(data):
+    """클라이언트가 "중지" 버튼을 눌렀을 때 현재 세션을 중지시킵니다."""
+    print("🔄 (세션 중지) 요청 수신...")
+    stop_audio_session(notify_client=True)
+
+
+# --- ⭐️ [신규] 오디오 세션 중지 함수 ---
+def stop_audio_session(notify_client=True):
+    """
+    (신규) 현재 오디오 스레드를 중지시킵니다.
+    notify_client=True일 경우 클라이언트에 'session_stopped' 이벤트를 보냅니다.
+    """
+    global current_audio_thread, current_stop_event
+
+    stopped_successfully = False
+    if current_stop_event is not None and current_audio_thread is not None:
+        print("🔄 [Session] 'stop_event' 전송. 스레드 중지 시도...")
+        current_stop_event.set()
+        # 스레드가 완전히 종료될 때까지 최대 2초 대기
+        current_audio_thread.join(timeout=2.0)
+
+        if not current_audio_thread.is_alive():
+            print("✅ [Session] 스레드 중지 완료.")
+            stopped_successfully = True
+        else:
+            print("⚠️ [Session] 스레드가 2초 내에 종료되지 않았습니다.")
+    else:
+        print("ℹ️ [Session] 중지할 활성 스레드가 없습니다.")
+        stopped_successfully = True  # 중지할 것이 없어도 성공으로 간주
+
+    current_audio_thread = None
+    current_stop_event = None
+
+    if notify_client:
+        socketio.emit("session_stopped", {
+            'message': '세션이 중지되었습니다. 새로 시작할 수 있습니다.'
+        })
+    return stopped_successfully
 
 
 # --- ⭐️ [수정] Whisper 세션 시작/재시작 함수 ---
@@ -211,29 +249,21 @@ def start_new_audio_session(session_id):
     """
     (수정)
     1. `session_id`를 인자로 받습니다.
-    2. 기존 오디오 스레드를 중지하고 새 스레드를 시작합니다.
+    2. (안전조치) `notify_client=False`로 기존 스레드를 중지합니다.
+    3. 새 스레드를 시작합니다.
     """
     global current_audio_thread, current_stop_event
 
-    # 1. 기존 스레드가 실행 중이면 중지 신호 전송
-    if current_stop_event is not None and current_audio_thread is not None:
-        print("🔄 [Session] 'stop_event' 전송. 이전 스레드 중지 시도...")
-        current_stop_event.set()
+    # 1. (안전조치) 기존 스레드 중지 (클라이언트 알림 없이)
+    #    (사용자가 '중지'를 누르지 않고 바로 '시작'을 누른 경우 대비)
+    stop_audio_session(notify_client=False)
 
-        # 2. 스레드가 종료될 때까지 잠시 대기 (최대 2초)
-        current_audio_thread.join(timeout=2.0)
-
-        if current_audio_thread.is_alive():
-            print("⚠️ [Session] 이전 스레드가 2초 내에 종료되지 않았습니다. (무시하고 진행)")
-        else:
-            print("✅ [Session] 이전 스레드 중지 완료.")
-
-    # 3. 새 stop_event 생성 (세션 ID는 인자로 받은 것 사용)
+    # 2. 새 stop_event 생성 (세션 ID는 인자로 받은 것 사용)
     current_stop_event = threading.Event()
 
     print(f"\n🎬 [새 세션 시작] 세션 ID: {session_id}\n")
 
-    # 4. 새 오디오 스레드 생성 및 시작
+    # 3. 새 오디오 스레드 생성 및 시작
     current_audio_thread = threading.Thread(
         target=main_audio_streaming,
         args=(session_id, socketio, current_stop_event),
@@ -242,8 +272,7 @@ def start_new_audio_session(session_id):
     current_audio_thread.start()
     print("🎤 Whisper 실시간 음성 인식 스레드 시작됨 ✅")
 
-    # 5. (중요) 클라이언트에 새 세션이 시작되었음을 알림
-    #    (클라이언트가 로컬 로그를 비우도록 유도)
+    # 4. (중요) 클라이언트에 새 세션이 시작되었음을 알림
     socketio.emit("new_session_started", {
         'session_id': session_id,
         'message': '새로운 세션이 시작되었습니다.'
