@@ -5,9 +5,11 @@
 <title>실시간 번역 - 세션 뷰 (별도 팝업 창)</title>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <style>
-    /* ⭐️ CSS 변수 선언: 폰트 크기 (JS에서 동적으로 변경) */
+    /* ⭐️ CSS 변수 선언: 폰트 크기, 폰트 종류 (JS에서 동적으로 변경) */
     :root {
+        /* ⭐️ [수정] 기본 폰트 종류는 하드코딩 */
         --log-font-size: 14px;
+        --log-font-family: 'Segoe UI', Arial, sans-serif;
         /* 다크 모드 (기본값) 변수 */
         --bg-color: #222;
         --text-color: #fff;
@@ -155,6 +157,22 @@
         padding: 10px 15px;
     }
 
+    /* ⭐️ [신규] 저장 옵션 그룹 스타일 */
+    .save-options-group {
+        display: flex;
+        gap: 5px;
+        width: 100%;
+    }
+    .save-options-group .all-btn {
+        flex: 1; /* 두 버튼이 공간을 균등하게 차지 */
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 0.9em;
+        white-space: normal;
+        line-height: 1.2;
+    }
+
+
     /* ⭐️ 설정 항목 스타일 (줌/폰트 컨트롤을 위해 재정의) */
     .setting-item {
         margin-bottom: 5px;
@@ -177,7 +195,7 @@
         padding-left: 5px;
     }
 
-    /* ⭐️ 줌 컨트롤 스타일: 양옆 정렬된 한 줄 구조 (이전 요청의 최종 결과 복원) */
+    /* ⭐️ 줌/폰트 컨트롤 스타일: 양옆 정렬된 한 줄 구조 */
     .zoom-controls {
         display: flex;
         justify-content: space-between;
@@ -189,7 +207,7 @@
         height: 40px;
     }
 
-    /* ⭐️ zoom-controls 내부 버튼 스타일 (1:2:1 비율 유지) */
+    /* ⭐️ zoom-controls 내부 버튼 스타일 */
     .zoom-controls button {
         padding: 0 10px;
         height: 100%;
@@ -261,7 +279,7 @@
         font-weight: bold;
     }
 
-    /* 로그 항목 스타일 (폰트 크기 변수 적용) */
+    /* 로그 항목 스타일 (폰트 크기/종류 변수 적용) */
     .log-entry {
         display:flex;
         flex-direction:column;
@@ -280,7 +298,8 @@
         border-radius:22px;
         word-wrap:break-word;
         font-size: var(--log-font-size);
-        transition: background 0.3s, color 0.3s, font-size 0.3s;
+        font-family: var(--log-font-family); /* ⭐️ [기본값 고정] 변수 적용 */
+        transition: background 0.3s, color 0.3s, font-size 0.3s; /* 폰트 종류 전환 제거 */
     }
     .original {
         background: var(--original-bg);
@@ -319,6 +338,11 @@
 
                 <button id="toggle-theme" class="all-btn">🌙 다크 모드</button>
 
+                <div class="save-options-group">
+                    <button id="save-original-log-btn" class="all-btn">💾 원문 저장</button>
+                    <button id="save-translated-log-btn" class="all-btn">💾 번역 저장</button>
+                </div>
+
                 <div class="setting-item">
                     <label>화면 확대/축소</label>
                     <div class="zoom-controls">
@@ -336,6 +360,7 @@
                         <button id="font-increase-btn">A+</button>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
@@ -357,37 +382,44 @@
 
     // ⭐️ 통합된 메뉴 내부 버튼 변수
     const themeBtn = document.getElementById("toggle-theme");
-    // const settingsBtn = document.getElementById("settings-btn"); // ⭐️ 삭제됨
     const langToggleBtn = document.getElementById("lang-toggle-btn");
+
+    // ⭐️ [수정] 로그 저장 버튼 변수 (이지선다형 버튼 그룹)
+    const saveOriginalLogBtn = document.getElementById("save-original-log-btn");
+    const saveTranslatedLogBtn = document.getElementById("save-translated-log-btn");
 
     // ⭐️ 설정 요소 변수
     const zoomInBtn = document.getElementById("zoom-in-btn");
     const zoomOutBtn = document.getElementById("zoom-out-btn");
     const zoomLevelSpan = document.getElementById("zoom-level");
-    // const settingsModal = document.getElementById("settings-modal"); // ⭐️ 삭제됨
     const fontDecreaseBtn = document.getElementById("font-decrease-btn");
     const fontIncreaseBtn = document.getElementById("font-increase-btn");
     const fontSizeLevelSpan = document.getElementById("font-size-level");
+
+    // ⭐️ 글꼴 종류를 고정값으로 설정
+    const currentFontFamily = "'Segoe UI', Arial, sans-serif";
 
     // ⭐️ 로그 클리어 버튼 변수
     const clearLogBtn = document.getElementById("clear-log-btn");
 
     // ⭐️ 세션 제어 버튼 변수
     const sessionControlBtn = document.getElementById("session-control-btn");
+    let currentSessionId = "";
 
     let summaryWindow = null;
     let currentTheme = localStorage.getItem('theme') || 'dark';
+    // ⭐️ 기본 언어는 로컬에 없으면 'en' (영어)가 기본값
     let currentLang = localStorage.getItem('lang') || 'en';
     let currentZoom = 1.0;
     const zoomStep = 0.1;
-    let currentFontSize = 14;
+    let currentFontSize = parseInt(localStorage.getItem('fontSize') || '14');
     const fontSizeStep = 2;
 
     // --- 초기화 실행 ---
     applyTheme(currentTheme);
     updateLangButton(currentLang);
     updateZoom(currentZoom);
-    updateFontSize(currentFontSize);
+    updateFontSize(currentFontSize, false);
     // ---------------------
 
     // ⭐️ 시스템 메시지 추가 헬퍼 함수
@@ -414,6 +446,63 @@
             addSystemMessage("로그가 수동으로 삭제되었습니다.");
         }
     });
+
+    // ⭐️ [수정] 로그 저장 버튼 이벤트 리스너 (이지선다형)
+    saveOriginalLogBtn.addEventListener('click', () => {
+        // [수정] 드롭다운 메뉴 닫기 로직은 더 이상 필요 없으나, 현재 열린 메뉴가 있다면 닫히도록 로직 유지 가능
+        saveLogToFile('original');
+    });
+
+    saveTranslatedLogBtn.addEventListener('click', () => {
+        // [수정] 드롭다운 메뉴 닫기 로직은 더 이상 필요 없으나, 현재 열린 메뉴가 있다면 닫히도록 로직 유지 가능
+        saveLogToFile('translated');
+    });
+
+    // ⭐️ 로그 파일 저장 함수 (type 인수로 저장할 로그 종류 지정)
+    /**
+     * @param {'original' | 'translated'} type 저장할 로그 종류
+     */
+    function saveLogToFile(type) {
+        if (logs.length === 0) {
+            alert("저장할 로그 내용이 없습니다.");
+            return;
+        }
+
+        let logContent;
+        let fileTypePrefix;
+
+        if (type === 'original') {
+            logContent = logs.map(data => `[${data.time}] ${data.original}`).join('\n');
+            fileTypePrefix = "Original_";
+        } else if (type === 'translated') {
+            logContent = logs.map(data => `[${data.time}] ${data.translated}`).join('\n');
+            fileTypePrefix = "Translated_";
+        } else {
+            console.error("잘못된 로그 타입이 전달되었습니다.");
+            return;
+        }
+
+        // 파일 이름 생성: 세션 ID가 있으면 사용, 없으면 날짜/시간 사용
+        const defaultName = currentSessionId
+            ? `${fileTypePrefix}Log_${currentSessionId}`
+            : `${fileTypePrefix}Log_${new Date().toLocalISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+
+        const fileName = prompt("저장할 파일 이름을 입력하세요:", defaultName) || defaultName;
+
+        // Blob을 사용하여 텍스트 파일 생성
+        const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName + '.txt';
+
+        // 다운로드 실행
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        console.log(`💾 ${type} 로그가 '${fileName}.txt'로 저장되었습니다.`);
+        addSystemMessage(`${type} 로그가 파일로 저장되었습니다: ${fileName}.txt`);
+    }
 
     // ⭐️ 세션 제어 버튼 클릭 이벤트 (로직 분리)
     sessionControlBtn.addEventListener('click', () => {
@@ -463,10 +552,8 @@
     // ⭐️ 유틸리티 메뉴 토글 기능
     utilityMenuToggle.addEventListener('click', (event) => {
         event.stopPropagation();
-        const isHidden = utilityDropdownMenu.style.display === 'none' || utilityDropdownMenu.style.display === '';
-        utilityDropdownMenu.style.display = isHidden ? 'flex' : 'none';
-
-        // ⭐️ 설정 모달 관련 로직은 제거됨 ⭐️
+        const isHidden = utilityDropdownMenu.style.display === 'flex';
+        utilityDropdownMenu.style.display = isHidden ? 'none' : 'flex';
     });
 
     // ⭐️ 메뉴 외부 클릭 시 닫기
@@ -483,6 +570,7 @@
     // ⭐️ 언어 토글 버튼 클릭 이벤트
     langToggleBtn.addEventListener("click", (event) => {
         event.stopPropagation();
+        // 'en' (영어)와 'ja' (일본어)를 토글
         const newLang = currentLang === "en" ? "ja" : "en";
 
         currentLang = newLang;
@@ -514,15 +602,6 @@
         applyTheme(newTheme);
     });
 
-    // ⭐️ 설정 모달 토글 로직 제거 ⭐️
-    /* settingsBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const isHidden = settingsModal.style.display === 'none' || settingsModal.style.display === '';
-        settingsModal.style.display = isHidden ? 'block' : 'none';
-        settingsBtn.textContent = isHidden ? '➖ 설정 닫기' : '⚙️ 설정 열기';
-    }); */
-
-
     // ⭐️ 팝업 창 통신 함수 (2개)
     window.requestSpecificSummaryFromPopup = (sessionId) => {
         if (sessionId) {
@@ -543,28 +622,74 @@
         }
     }
 
+    // ⭐️ [신규] 요약 파일 저장 함수 (팝업에서 호출)
+    /**
+     * @param {string} summaryContent 저장할 요약 텍스트
+     * @param {string} sessionId 현재 선택된 세션 ID
+     */
+    window.saveSummaryToFile = (summaryContent, sessionId) => {
+        if (!summaryContent || summaryContent.trim() === "" || summaryContent.includes('[요약 생성 중...]')) {
+            alert("저장할 요약 내용이 없거나 로드 중입니다.");
+            return;
+        }
+
+        const defaultName = sessionId && !sessionId.startsWith('[')
+            ? `Summary_of_${sessionId}`
+            : `Summary_Log_${new Date().toLocalISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+
+        const fileName = prompt("저장할 파일 이름을 입력하세요:", defaultName) || defaultName;
+
+        // Blob을 사용하여 텍스트 파일 생성
+        const blob = new Blob([summaryContent], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName + '.txt';
+
+        // 다운로드 실행
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        console.log(`💾 요약 로그가 '${fileName}.txt'로 저장되었습니다.`);
+        addSystemMessage(`요약 내용이 파일로 저장되었습니다: ${fileName}.txt`);
+    }
+
     // ⭐️ 줌/폰트 크기 함수
     function updateZoom(newZoom) {
         currentZoom = Math.max(0.5, Math.min(2.0, newZoom));
         document.body.style.zoom = currentZoom;
         zoomLevelSpan.textContent = `${Math.round(currentZoom * 100)}%`;
     }
-    function updateFontSize(newSize) {
+
+    function updateFontSize(newSize, save=true) {
         currentFontSize = Math.max(10, Math.min(24, newSize));
+        // 1. CSS 변수 업데이트 (메인 윈도우)
         document.documentElement.style.setProperty('--log-font-size', `${currentFontSize}px`);
+
+        // 2. 팝업 윈도우 스타일 동기화 (폰트 크기)
+        if (summaryWindow && !summaryWindow.closed) {
+            const popupDoc = summaryWindow.document;
+            popupDoc.body.style.fontSize = `${currentFontSize}px`; // 팝업 body 폰트 크기 조정
+        }
+
+        // 3. 레벨 텍스트 업데이트
         let levelText = "기본";
         if (currentFontSize > 14) levelText = `+${(currentFontSize - 14) / fontSizeStep}`;
         else if (currentFontSize < 14) levelText = `-${(14 - currentFontSize) / fontSizeStep}`;
         fontSizeLevelSpan.textContent = levelText;
-        const entries = logDiv.querySelectorAll('.original, .translated');
-        entries.forEach(el => el.style.fontSize = `${currentFontSize}px`);
+
+        if (save) {
+            localStorage.setItem('fontSize', currentFontSize);
+            console.log(`📏 폰트 크기 변경: ${currentFontSize}px`);
+        }
     }
 
-    // ⭐️ 줌/폰트 리스너
+    // ⭐️ 줌/폰트 크기 리스너
     zoomInBtn.addEventListener('click', () => updateZoom(currentZoom + zoomStep));
     zoomOutBtn.addEventListener('click', () => updateZoom(currentZoom - zoomStep));
     fontIncreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize + fontSizeStep));
     fontDecreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize - fontSizeStep));
+
 
     // ⭐️ 테마 적용 함수 (팝업 동기화 포함)
     function applyTheme(theme) {
@@ -579,7 +704,7 @@
         currentTheme = theme;
 
         if (summaryWindow && !summaryWindow.closed) {
-            // 팝업 창 테마 즉시 동기화
+            // 팝업 창 테마 즉시 동기화 (인라인 스타일로 구현)
             const doc = summaryWindow.document;
             const isLight = theme === 'light';
 
@@ -589,7 +714,11 @@
             const popupBorder = isLight ? '#ddd' : '#555';
             const popupInputBg = isLight ? '#fff' : '#444';
             const popupSummaryBg = isLight ? '#f9f9f9' : '#2a2a2a';
+            const renameBtnBg = popupHighlight;
+            const renameBtnColor = popupText;
+            const renameBtnHoverBg = isLight ? '#0056b3' : '#10ac84';
 
+            // 팝업 문서의 body에 인라인 스타일 적용
             doc.body.style.background = popupBg;
             doc.body.style.color = popupText;
             const h1Element = doc.querySelector('h1');
@@ -607,14 +736,14 @@
             }
             const renameBtnElement = doc.getElementById('rename-btn');
             if(renameBtnElement) {
-                renameBtnElement.style.background = popupHighlight;
-                renameBtnElement.style.color = popupText;
+                renameBtnElement.style.background = renameBtnBg;
+                renameBtnElement.style.color = renameBtnColor;
             }
         }
     }
 
 
-    // ⭐️ 팝업 창 열기 함수
+    // ⭐️ 팝업 창 열기 함수 (여기서 팝업 창의 초기 스타일을 설정)
     function openSummaryWindow() {
         if (summaryWindow && !summaryWindow.closed) {
             summaryWindow.focus();
@@ -637,17 +766,39 @@
             const renameBtnColor = popupText;
             const renameBtnHoverBg = isLight ? '#0056b3' : '#10ac84';
 
+            // ⭐️ 팝업 스타일 시트 내에 글꼴 및 폰트 크기 초기 값을 설정합니다. (글꼴은 고정)
             const popupHTML = `
                 <!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>회의 요약</title>
                 <style>
-                    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: ${popupBg}; color: ${popupText}; line-height: 1.6; transition: background 0.3s, color 0.3s; }
+                    body {
+                        font-family: ${currentFontFamily}; /* ⭐️ 고정된 글꼴 적용 */
+                        font-size: ${currentFontSize}px; /* ⭐️ 초기 폰트 크기 적용 */
+                        margin: 0; padding: 20px;
+                        background: ${popupBg}; color: ${popupText}; line-height: 1.6;
+                        transition: background 0.3s, color 0.3s, font-size 0.3s;
+                    }
                     h1 { text-align: center; color: ${popupHighlight}; margin-bottom: 20px; font-size: 1.5em; }
                     #session-controls { display: flex; gap: 10px; margin-bottom: 15px; align-items: stretch; }
                     #session-controls label { font-weight: bold; padding: 8px 0; }
                     #session-select { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid ${popupBorder}; background: ${popupInputBg}; color: ${popupText}; font-size: 0.9em; }
                     #rename-btn { padding: 8px 12px; border-radius: 5px; border: none; background: ${renameBtnBg}; color: ${renameBtnColor}; cursor: pointer; font-weight: bold; font-size: 0.9em; transition: background 0.3s; }
                     #rename-btn:hover { background: ${renameBtnHoverBg}; }
-                    #summary-text { white-space: pre-wrap; border: 1px solid ${popupBorder}; padding: 15px; border-radius: 8px; background: ${popupSummaryBg}; min-height: 300px; }
+
+                    /* ⭐️ [추가] 요약 저장 버튼 스타일 */
+                    #save-summary-btn {
+                        padding: 8px 12px; border-radius: 5px; border: none;
+                        background: #f39c12; color: #333; cursor: pointer;
+                        font-weight: bold; font-size: 0.9em;
+                        transition: background 0.3s;
+                    }
+                    #save-summary-btn:hover { background: #e67e22; }
+
+                    #summary-text {
+                        white-space: pre-wrap; border: 1px solid ${popupBorder}; padding: 15px; border-radius: 8px;
+                        background: ${popupSummaryBg}; min-height: 300px;
+                        font-family: ${currentFontFamily}; /* ⭐️ 요약 텍스트에도 글꼴 적용 */
+                        font-size: 1em; /* body 기준으로 */
+                    }
                 </style>
                 </head><body>
                     <h1>회의 요약</h1>
@@ -655,17 +806,22 @@
                         <label for="session-select">세션:</label>
                         <select id="session-select"><option value="">[로드 중...]</option></select>
                         <button id="rename-btn">이름 변경</button>
+                        <button id="save-summary-btn">💾 요약 저장</button>
                     </div>
                     <div id="summary-text">[요약 생성 중...]</div>
                     <script>
                         const sessionSelect = document.getElementById('session-select');
                         const renameBtn = document.getElementById('rename-btn');
+                        // ⭐️ [추가] 요약 저장 버튼 변수
+                        const saveSummaryBtn = document.getElementById('save-summary-btn');
+
                         sessionSelect.addEventListener('change', () => {
                             const selectedSessionId = sessionSelect.value;
                             if (selectedSessionId && window.opener && typeof window.opener.requestSpecificSummaryFromPopup === 'function') {
                                 window.opener.requestSpecificSummaryFromPopup(selectedSessionId);
                             }
                         });
+
                         renameBtn.addEventListener('click', () => {
                             const oldId = sessionSelect.value;
                             if (!oldId || oldId.startsWith('[')) { alert("이름을 변경할 세션이 선택되지 않았습니다."); return; }
@@ -675,6 +831,19 @@
                                 window.opener.requestRenameSessionFromPopup(oldId, newId.trim());
                             }
                         });
+
+                        // ⭐️ [추가] 요약 저장 버튼 이벤트 리스너
+                        saveSummaryBtn.addEventListener('click', () => {
+                            const summaryText = document.getElementById('summary-text').textContent;
+                            const sessionId = sessionSelect.value;
+                            // 메인 창의 saveSummaryToFile 함수를 호출합니다.
+                            if (window.opener && typeof window.opener.saveSummaryToFile === 'function') {
+                                window.opener.saveSummaryToFile(summaryText, sessionId);
+                            } else {
+                                alert("저장 기능을 실행할 수 없습니다. 메인 창을 확인하세요.");
+                            }
+                        });
+
                     <\/script>
                 </body></html>
             `;
@@ -691,7 +860,17 @@
     // ----------------------------------------------------
     // ✨ Socket.IO 연동 로직
     // ----------------------------------------------------
-    socket.on("connect", () => console.log("✅ 서버 연결 성공"));
+    socket.on("connect", () => {
+        console.log("✅ 서버 연결 성공");
+
+        // ⭐️ 서버 연결 시 로컬에 저장된/기본값인 언어를 서버에 즉시 전송
+        // 기본값은 'en' (영어)입니다.
+        socket.emit("change_language", {
+            language: currentLang,
+            target: 'ko'
+        });
+        console.log(`🎧 서버 연결 시 기본 언어 요청: ${currentLang} -> ko`);
+    });
 
     // 1. 실시간 번역 로그 수신
     socket.on("partial_translation", data => {
@@ -734,6 +913,9 @@
     socket.on("new_session_started", data => {
         console.log(`✅ 서버가 새 세션 시작 확인: ${data.session_id}`);
 
+        // ⭐️ 세션 ID 저장
+        currentSessionId = data.session_id;
+
         // 1. 로컬 로그 배열 비우기
         logs.length = 0;
         renderLogs(logDiv, logs, false);
@@ -761,12 +943,15 @@
         sessionControlBtn.textContent = "Start Translation";
         sessionControlBtn.classList.remove("session-active");
 
+        // ⭐️ 세션 ID 초기화
+        currentSessionId = "";
+
         // 2. 시스템 메시지 추가
         addSystemMessage(`--- ${data.message} ---`);
     });
 
 
-    // ⭐️ 로그 렌더링 함수 (동적 폰트 크기 적용)
+    // ⭐️ [수정 완료] 로그 렌더링 함수 (동적 폰트 크기 적용)
     function renderLogs(container, dataLogs, scrollToBottom=false){
         container.innerHTML = "";
         dataLogs.forEach(data => {
@@ -780,22 +965,21 @@
             const originalDiv = document.createElement("div");
             originalDiv.classList.add("original");
             originalDiv.textContent = data.original;
-            originalDiv.style.fontSize = `${currentFontSize}px`;
 
             const translatedDiv = document.createElement("div");
             translatedDiv.classList.add("translated");
-            translatedDiv.textContent = data.translated;
-            translatedDiv.style.fontSize = `${currentFontSize}px`;
+            translatedDiv.textContent = data.translated; // 🛑 data.trans -> data.translated로 수정
 
+            // ⭐️ [복구] 생성된 요소를 entry에 추가하고 entry를 container에 추가
             entry.appendChild(timeDiv);
             entry.appendChild(originalDiv);
             entry.appendChild(translatedDiv);
-
             container.appendChild(entry);
-            setTimeout(() => entry.classList.add("show"), 10);
+
+            // 비동기적으로 show 클래스를 추가하여 페이드인 효과 구현
+            setTimeout(() => entry.classList.add('show'), 10);
         });
 
-        // (수정) 스크롤은 렌더링이 완료된 후에만 수행
         if(scrollToBottom) {
             container.scrollTop = container.scrollHeight;
         }
