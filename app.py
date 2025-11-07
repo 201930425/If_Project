@@ -11,6 +11,12 @@ from summary_handler import load_kobart_model, summarize_text
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# --- ⭐️ [수정] 오디오 스레드 관리를 위한 전역 변수 ---
+current_audio_thread = None
+current_stop_event = None
+
+
+# ----------------------------------------------------
 
 # --- Flask 라우트 ---
 @app.route("/")
@@ -180,20 +186,60 @@ def handle_rename_session(data):
         print(f"⚠️ 이름 변경 처리 중 심각한 오류: {e}")
 
 
-# --- Whisper 자동 세션 시작 ---
-def start_auto_session():
-    """서버 실행 시 자동으로 Whisper 스트리밍을 시작"""
-    session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print(f"\n🎬 [자동 세션 시작] 세션 ID: {session_id}\n")
+# --- ⭐️ [신규] 새 세션 시작 요청 핸들러 ---
+@socketio.on("request_new_session")
+def handle_new_session_request():
+    """클라이언트의 새 세션 시작 요청을 처리 (오디오 스레드 재시작)"""
+    print("🔄 (새 세션) 요청 수신... 오디오 스레드를 재시작합니다.")
+    # (주의: 이 함수는 SocketIO 스레드에서 호출되므로,
+    # start_new_audio_session 내의 .join()이 현재 스레드를 막을 수 있습니다.
+    # 더 복잡한 시스템에서는 이를 별도 스레드로 분리해야 할 수 있으나,
+    # 여기서는 단순성을 위해 직접 호출합니다.)
+    start_new_audio_session()
 
-    stop_event = threading.Event()
-    audio_thread = threading.Thread(
+
+# --- ⭐️ [수정] Whisper 세션 시작/재시작 함수 ---
+def start_new_audio_session():
+    """
+    (수정) 기존 오디오 스레드를 중지하고 새 스레드를 시작합니다.
+    서버 시작 시 또는 '새 세션' 요청 시 호출됩니다.
+    """
+    global current_audio_thread, current_stop_event
+
+    # 1. 기존 스레드가 실행 중이면 중지 신호 전송
+    if current_stop_event is not None and current_audio_thread is not None:
+        print("🔄 [Session] 'stop_event' 전송. 이전 스레드 중지 시도...")
+        current_stop_event.set()
+
+        # 2. 스레드가 종료될 때까지 잠시 대기 (최대 2초)
+        current_audio_thread.join(timeout=2.0)
+
+        if current_audio_thread.is_alive():
+            print("⚠️ [Session] 이전 스레드가 2초 내에 종료되지 않았습니다. (무시하고 진행)")
+        else:
+            print("✅ [Session] 이전 스레드 중지 완료.")
+
+    # 3. 새 세션 ID 및 새 stop_event 생성
+    session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    current_stop_event = threading.Event()
+
+    print(f"\n🎬 [새 세션 시작] 세션 ID: {session_id}\n")
+
+    # 4. 새 오디오 스레드 생성 및 시작
+    current_audio_thread = threading.Thread(
         target=main_audio_streaming,
-        args=(session_id, socketio, stop_event),
+        args=(session_id, socketio, current_stop_event),
         daemon=True
     )
-    audio_thread.start()
+    current_audio_thread.start()
     print("🎤 Whisper 실시간 음성 인식 스레드 시작됨 ✅")
+
+    # 5. (중요) 클라이언트에 새 세션이 시작되었음을 알림
+    #    (클라이언트가 로컬 로그를 비우도록 유도)
+    socketio.emit("new_session_started", {
+        'session_id': session_id,
+        'message': '새로운 세션이 시작되었습니다.'
+    })
 
 
 # --- KoBART 모델 초기화 ---
@@ -207,7 +253,13 @@ def init_summary_model():
 if __name__ == "__main__":
     init_db()
     print("✅ DB 초기화 완료")
+
+    # KoBART 모델 로드 스레드 시작
     threading.Thread(target=init_summary_model, daemon=True).start()
+
+    # ⭐️ [수정] 서버 시작 시 'start_new_audio_session' 함수를 호출
     print(f"🌍 Socket.IO 서버 시작: http://{HOST}:{PORT} 에서 접속 가능")
-    threading.Thread(target=start_auto_session, daemon=True).start()
+    threading.Thread(target=start_new_audio_session, daemon=True).start()
+
+    # Socket.IO 서버 실행 (메인 스레드)
     socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True)

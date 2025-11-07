@@ -104,6 +104,16 @@
         background: var(--clear-hover-bg);
     }
 
+    /* ⭐️ [신규] 새 세션 버튼 스타일 (눈에 띄게) */
+    #new-session-btn {
+        background-color: #ff6347; /* (토마토 색상) */
+        color: #fff;
+    }
+    #new-session-btn:hover {
+        background-color: #d9534f;
+    }
+
+
     /* ⭐️ 유틸리티 메뉴 토글 버튼 스타일 (아이콘 형태) */
     #utility-menu-toggle {
         padding: 8px 12px;
@@ -249,6 +259,7 @@
     <div id="button-container">
         <div id="left-buttons">
             <button id="clear-log-btn" class="all-btn">Clear!</button>
+            <button id="new-session-btn" class="all-btn">New Session</button>
         </div>
 
         <div id="right-buttons">
@@ -318,6 +329,9 @@
     // ⭐️ 로그 클리어 버튼 변수
     const clearLogBtn = document.getElementById("clear-log-btn");
 
+    // ⭐️ [신규] 새 세션 버튼 변수
+    const newSessionBtn = document.getElementById("new-session-btn");
+
     let summaryWindow = null;
     let currentTheme = localStorage.getItem('theme') || 'dark';
     let currentLang = localStorage.getItem('lang') || 'en';
@@ -339,6 +353,18 @@
             logs.length = 0;
             renderLogs(logDiv, logs, false);
             console.log("🔥 모든 로그 항목이 삭제되었습니다.");
+        }
+    });
+
+    // ⭐️ [신규] 새 세션 시작 버튼 클릭 이벤트
+    newSessionBtn.addEventListener('click', () => {
+        if (confirm("새로운 세션을 시작하시겠습니까? 현재 화면의 로그가 모두 지워집니다.")) {
+            // 1. 즉시 클라이언트 로그를 비웁니다.
+            logs.length = 0;
+            renderLogs(logDiv, logs, false);
+            // 2. 서버에 새 세션 시작을 요청합니다.
+            socket.emit("request_new_session", {});
+            console.log("🚀 새 세션 시작 요청 전송");
         }
     });
 
@@ -617,6 +643,17 @@
     socket.on("language_changed", data => {
         console.log(`✅ 서버가 언어 변경 확인: ${data.language}`);
         // (필요 시: "언어 변경 완료" 같은 알림 토스트 팝업)
+    });
+
+    // ⭐️ [신규] 4. 서버로부터 새 세션이 시작되었음을 확인
+    socket.on("new_session_started", data => {
+        console.log(`✅ 서버가 새 세션 시작 확인: ${data.session_id}`);
+        // (New Session 버튼 클릭 시 이미 logs.length = 0를 실행했지만,
+        //  혹시 모를 동기화를 위해 서버 확인 시 한 번 더 실행)
+        logs.length = 0;
+        renderLogs(logDiv, logs, false);
+        // (필요 시: 사용자에게 알림)
+        // alert(data.message);
     });
 
 
