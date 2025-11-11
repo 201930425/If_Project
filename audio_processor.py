@@ -1,3 +1,33 @@
+# # ⭐️ [신규] CUDA DLL 경로를 스크립트 최상단에 직접 추가 #gpu사용시
+# import os
+#
+# # 1. CUDA Toolkit 경로 (기존)
+# cuda_toolkit_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.1\bin"
+# # ⭐️ 2. cuDNN 경로 (새로 찾은 정확한 경로)
+# cudnn_path = r"C:\Program Files\NVIDIA\CUDNN\v9.15\bin\12.9"
+#
+# # ⭐️ [수정] 2개의 경로를 모두 리스트로 관리
+# paths_to_add = [cuda_toolkit_path, cudnn_path]
+#
+# for path in paths_to_add:
+#     # ⭐️ 3. os.environ["PATH"]에 수동 추가 (MINGW64 호환성)
+#     try:
+#         if path and os.path.exists(path) and path not in os.environ.get("PATH", ""):
+#             print(f"✅ (최상단) os.environ['PATH']에 경로 추가: {path}")
+#             os.environ["PATH"] = path + os.pathsep + os.environ.get("PATH", "")
+#         elif not os.path.exists(path):
+#              print(f"⚠️ (최상단) 경고: 경로를 찾을 수 없습니다: {path}")
+#     except Exception as e:
+#         print(f"⚠️ (최상단) PATH 환경 변수 설정 실패 (무시): {e}")
+#
+#     # ⭐️ 4. (기존) os.add_dll_directory 사용 (Python 3.8+ 권장 방식)
+#     try:
+#         if path and os.path.exists(path):
+#             print(f"✅ (최상단) os.add_dll_directory로 경로 추가: {path}")
+#             os.add_dll_directory(path)
+#     except Exception as e:
+#         print(f"⚠️ (최상단) DLL 경로 추가 실패 (무시): {e}")
+# # ⭐️ [신규] 여기까지 수정 ---
 import sounddevice as sd
 import numpy as np
 import queue
@@ -20,8 +50,10 @@ from config import (
 
 print(f"🎧 Whisper 모델({MODEL_TYPE}) 로드 중...")
 # ⭐️ [수정] float16 -> int8_float16 (GTX 1050 호환 모드)
-model = WhisperModel(MODEL_TYPE, device="cuda", compute_type="int8")
-print("✅ Whisper 모델 로드 완료 (Device: CUDA/GPU)")
+# model = WhisperModel(MODEL_TYPE, device="cuda", compute_type="int8") #gpu사용시
+# print("✅ Whisper 모델 로드 완료 (Device: CUDA/GPU)") #gpu사용시
+model = WhisperModel(MODEL_TYPE, device="cpu", compute_type="int8")
+print("✅ Whisper 모델 로드 완료 (Device: CPU)")
 
 
 # ⭐️ Silero VAD 모델 로드
