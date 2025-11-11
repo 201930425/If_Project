@@ -28,6 +28,7 @@
 #     except Exception as e:
 #         print(f"⚠️ (최상단) DLL 경로 추가 실패 (무시): {e}")
 # # ⭐️ [신규] 여기까지 수정 ---
+import os
 import sounddevice as sd
 import numpy as np
 import queue
@@ -155,8 +156,13 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
     print(f"🗂️ 세션 시작 (스트리밍 모드): {session_id}")
 
     # ⭐️ [신규] .wav 파일 쓰기 준비
+    output_dir = "wav"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f"📁 출력 디렉토리 생성: {output_dir}")
+
     wave_file = None
-    wave_file_name = f"{session_id}.wav"
+    wave_file_name = os.path.join(output_dir, f"{session_id}.wav") # wav/session_id.wav
     try:
         wave_file = wave.open(wave_file_name, 'wb')
         wave_file.setnchannels(1)  # 모노 (1 채널)
