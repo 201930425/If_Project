@@ -39,6 +39,7 @@ from deep_translator import GoogleTranslator
 from datetime import datetime, timezone, timedelta
 import traceback
 import noisereduce as nr
+import wave
 
 import config
 from db_handler import insert_transcript
@@ -153,6 +154,19 @@ def audio_callback(indata, frames, time_, status):
 def main_audio_streaming(session_id, socketio, stop_event=None):
     print(f"🗂️ 세션 시작 (스트리밍 모드): {session_id}")
 
+    # ⭐️ [신규] .wav 파일 쓰기 준비
+    wave_file = None
+    wave_file_name = f"{session_id}.wav"
+    try:
+        wave_file = wave.open(wave_file_name, 'wb')
+        wave_file.setnchannels(1)  # 모노 (1 채널)
+        wave_file.setsampwidth(2)  # 2바이트 (int16)
+        wave_file.setframerate(RATE)  # 16000
+        print(f"🌊 오디오 파일 녹음 시작: {wave_file_name}")
+    except Exception as e:
+        print(f"⚠️ [오류] {wave_file_name} 파일 생성 실패: {e}")
+        wave_file = None  # 파일 쓰기 비활성화
+
     buffer = np.zeros((0, 1), dtype=np.int16)
     sentence_buffer = ""
     previous_text = ""
@@ -177,6 +191,15 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
 
                 if not audio_q.empty():
                     block = audio_q.get()
+                    # ⭐️ [신규] 1. 오디오 조각을 .wav 파일에 저장
+                    if wave_file:
+                        try:
+                            wave_file.writeframes(block.tobytes())
+                        except Exception as e:
+                            print(f"⚠️ [오류] {wave_file_name} 파일 쓰기 중단: {e}")
+                            wave_file.close()  # 오류 발생 시 파일 닫기
+                            wave_file = None  # 더 이상 쓰지 않음
+
                     buffer = np.concatenate((buffer, block), axis=0)
 
                     if len(buffer) >= CHUNK_SIZE:
@@ -285,3 +308,8 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
     except Exception as e:
         print("❌ 알 수 없는 오류:", e)
         traceback.print_exc()
+    finally:
+        # ⭐️ [신규] 세션이 끝나면 .wav 파일 닫기
+        if wave_file:
+            wave_file.close()
+            print(f"🌊 오디오 파일 저장 완료: {wave_file_name}")
