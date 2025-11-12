@@ -94,7 +94,12 @@ def is_sentence_complete(text):
     if not text.strip():
         return False
     text = text.strip()
-    return text.endswith((".", "!", "?", "요", "다", "죠", "네", "습니다"))
+    endings = (
+        ".", "!", "?",  # 영어
+        "요", "다", "죠", "네", "습니다",  # 한국어
+        "。", "です", "ます", "ね", "か"  # ⭐️ 일본어 추가
+    )
+    return text.endswith(endings)
 
 
 # ⭐️ [신규] Silero VAD용 헬퍼 함수 (버그 수정)
