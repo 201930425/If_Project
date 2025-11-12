@@ -5,9 +5,11 @@ from datetime import datetime
 import config  # ⭐️ config 모듈 임포트
 from config import HOST, PORT, LANGUAGE, TARGET_LANG  # ⭐️ 언어 설정 임포트
 from db_handler import init_db, get_latest_session_id, fetch_data_from_db, get_all_session_ids, rename_session
-from audio_processor import main_audio_streaming
+from audio_processor import main_audio_streaming, audio_q
+import queue
 from summary_handler import load_kobart_model, summarize_text
 
+# ⭐️ [신규] diarize_handler 임포트
 import diarize_handler
 
 app = Flask(__name__)
@@ -16,9 +18,13 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # --- ⭐️ [수정] 오디오 스레드 관리를 위한 전역 변수 ---
 current_audio_thread = None
 current_stop_event = None
+
+# ⭐️ [신규] 화자 분리 스레드 관리를 위한 전역 변수
 current_diarize_thread = None
 
+
 # ----------------------------------------------------
+
 
 # --- Flask 라우트 ---
 @app.route("/")
@@ -37,137 +43,51 @@ def handle_disconnect():
     print("❌ 클라이언트 연결 해제됨")
 
 
-# --- ⭐️ "요약 창 열기" (최초) 요청 핸들러 ---
-@socketio.on("request_summary")
-def handle_summary_request(data):
+# --- ⭐️ [신규] "세션 목록" (최초) 요청 핸들러 ---
+@socketio.on("request_session_list")
+def handle_session_list_request(data):
     """
-    클라이언트가 요약 팝업을 *처음* 열 때 호출됩니다.
+    클라이언트가 메인 페이지를 로드할 때 호출됩니다.
     1. 모든 세션 ID 목록
     2. 가장 최근 세션 ID
-    3. 가장 최근 세션의 요약
     """
-    print("🔄 (최초) 요약 요청 수신... 모든 세션 목록과 최신 요약을 반환합니다.")
+    print("🔄 (최초) 세션 목록 요청 수신...")
     try:
         all_sessions = get_all_session_ids()
         latest_session_id = None
-        summary = "[요약할 세션 데이터가 없습니다]"
-
         if all_sessions:
             latest_session_id = all_sessions[0]  # 최신 세션이 첫 번째
-            full_text = fetch_data_from_db(latest_session_id)
-            if full_text:
-                print(f"✅ 세션 '{latest_session_id}' 텍스트 요약 중...")
-                summary = summarize_text(full_text)
-            else:
-                summary = "[DB에 요약할 텍스트가 없습니다]"
 
-        socketio.emit("summary_data_updated", {
+        socketio.emit("session_list_updated", {
             'all_sessions': all_sessions,
-            'current_session_id': latest_session_id,
-            'summary': summary
+            'latest_session': latest_session_id
         })
-
     except Exception as e:
-        print(f"⚠️ 최초 요약 처리 중 오류: {e}")
-        socketio.emit("summary_data_updated", {
+        print(f"⚠️ 최초 세션 목록 전송 중 오류: {e}")
+        socketio.emit("session_list_updated", {
             'all_sessions': [],
-            'current_session_id': None,
-            'summary': f"[요약 생성 실패: {e}]"
+            'latest_session': None
         })
 
 
-@socketio.on("request_diarization")
-def handle_diarization_request(data):
-    """
-    클라이언트가 요약 창에서 "화자 분리" 버튼을 눌렀을 때 호출됩니다.
-    """
-    global current_audio_thread, current_diarize_thread
-    session_id = data.get("session_id")
-    if not session_id:
-        return
+# --- ⭐️ [제거] "request_summary" (최초 요약) 핸들러
+# (request_specific_summary로 기능 통합)
 
-    # ⭐️ [안전 장치 1] 실시간 번역 스레드가 실행 중인지 확인
-    if current_audio_thread is not None and current_audio_thread.is_alive():
-        print("⚠️ 화자 분리 거부: 실시간 번역 세션이 실행 중입니다.")
-        socketio.emit("summary_data_updated", {
-            'current_session_id': session_id,
-            'summary': "[오류] 실시간 번역을 먼저 중지해야 화자 분리를 실행할 수 있습니다."
-        })
-        return
-
-    # ⭐️ [안전 장치 2] 이미 다른 화자 분리 스레드가 실행 중인지 확인
-    if current_diarize_thread is not None and current_diarize_thread.is_alive():
-        print("⚠️ 화자 분리 거부: 이미 다른 세션의 화자 분리가 실행 중입니다.")
-        socketio.emit("summary_data_updated", {
-            'current_session_id': session_id,
-            'summary': "[오류] 이미 다른 화자 분리 작업이 실행 중입니다. 잠시 후 시도하세요."
-        })
-        return
-
-    print(f"🔄 (화자 분리) 요청 수신... 세션: {session_id}")
-
-    # ⭐️ [신규] 별도 스레드에서 화자 분리 실행 (CPU 작업이므로)
-    current_diarize_thread = threading.Thread(
-        target=run_diarization_thread,
-        args=(session_id,),
-        daemon=True
-    )
-    current_diarize_thread.start()
-
-
-# ⭐️ [신규] 화자 분리를 위한 스레드 함수
-def run_diarization_thread(session_id):
-    """
-    (백그라운드 스레드)
-    diarize_handler.py를 실행하고, 완료되면 결과를 클라이언트에 전송합니다.
-    """
-    global current_diarize_thread
-
-    try:
-        # diarize_handler.py의 메인 함수 호출
-        summary = diarize_handler.run_diarization(session_id)
-
-        print(f"✅ (화자 분리) 완료. 세션: {session_id}")
-
-        # 클라이언트(요약 팝업)에 최종 결과 전송
-        socketio.emit("summary_data_updated", {
-            'current_session_id': session_id,
-            'summary': summary  # 화자 분리 결과 텍스트
-        })
-
-    except Exception as e:
-        print(f"❌ (화자 분리) 스레드 오류: {e}")
-        socketio.emit("summary_data_updated", {
-            'current_session_id': session_id,
-            'summary': f"[오류] 화자 분리 중 심각한 오류 발생: {e}"
-        })
-    finally:
-        # 작업 완료 후 스레드 변수 정리
-        current_diarize_thread = None
 
 # --- ⭐️ [신규] 🌐 언어 변경 기능 ---
 @socketio.on("change_language")
 def handle_language_change(data):
     """클라이언트에서 언어 변경 요청을 받음"""
     try:
-        # ⭐️ config.py의 전역 변수 값을 직접 수정
         lang = data.get("language", "en")
-        target = data.get("target", "ko")  # 목표 언어는 'ko'로 고정
-
+        target = data.get("target", "ko")
         config.LANGUAGE = lang
         config.TARGET_LANG = target
-
         print(f"🌐 언어 변경됨 → 입력: {config.LANGUAGE}, 출력: {config.TARGET_LANG}")
-
-        # ⭐️ audio_processor가 config를 다시 참조하도록 알릴 필요는 없음
-        # (Python이 모듈을 참조하므로)
-
-        # 클라이언트에 변경 완료를 알림
         socketio.emit("language_changed", {
             "language": config.LANGUAGE,
             "target": config.TARGET_LANG
         })
-
     except Exception as e:
         print(f"⚠️ 언어 변경 중 오류: {e}")
         socketio.emit("language_changed", {
@@ -180,7 +100,7 @@ def handle_language_change(data):
 # --- ⭐️ "특정 세션" 요약 요청 핸들러 ---
 @socketio.on("request_specific_summary")
 def handle_specific_summary_request(data):
-    """클라이언트가 드롭다운에서 특정 세션을 선택했을 때 호출"""
+    """(수정) 클라이언트가 '요약' 버튼을 눌렀을 때 호출"""
     session_id = data.get("session_id")
     if not session_id:
         return
@@ -196,6 +116,7 @@ def handle_specific_summary_request(data):
             print(f"✅ 세션 '{session_id}' 텍스트 요약 중...")
             summary = summarize_text(full_text)
 
+        # ⭐️ [수정] 팝업창 전용 이벤트로 전송
         socketio.emit("summary_data_updated", {
             'current_session_id': session_id,
             'summary': summary
@@ -229,8 +150,16 @@ def handle_rename_session(data):
     try:
         success = rename_session(old_id, new_id)
 
+        # ⭐️ [수정] 1. (메인 페이지) 드롭다운 목록 갱신
+        all_sessions = get_all_session_ids()
+        socketio.emit("session_list_updated", {
+            'all_sessions': all_sessions,
+            'latest_session': new_id  # 새로 변경된 ID를 선택
+        })
+
+        # ⭐️ [수정] 2. (팝업 창) 요약 내용 갱신
+        summary = "[이름 변경 실패]"
         if success:
-            all_sessions = get_all_session_ids()
             full_text = fetch_data_from_db(new_id)
             if not full_text:
                 summary = "[세션 텍스트를 찾을 수 없습니다]"
@@ -239,17 +168,15 @@ def handle_rename_session(data):
 
             print("✅ 이름 변경 성공. 클라이언트에 갱신된 데이터 전송.")
             socketio.emit("summary_data_updated", {
-                'all_sessions': all_sessions,
                 'current_session_id': new_id,
                 'summary': summary
             })
         else:
-            print("❌ 이름 변경 실패. 기존 데이터로 클라이언트 동기화 시도.")
-            all_sessions = get_all_session_ids()
+            # (실패 시 기존 요약 다시 로드)
+            print("❌ 이름 변경 실패.")
             full_text = fetch_data_from_db(old_id)
             summary = summarize_text(full_text)
             socketio.emit("summary_data_updated", {
-                'all_sessions': all_sessions,
                 'current_session_id': old_id,
                 'summary': summary
             })
@@ -281,6 +208,83 @@ def handle_stop_session(data):
     stop_audio_session(notify_client=True)
 
 
+# ⭐️ [수정] "화자 분리" 요청 핸들러 (메인 페이지 버튼용)
+@socketio.on("request_diarization")
+def handle_diarization_request(data):
+    """
+    클라이언트가 *메인 페이지*에서 "화자 분리" 버튼을 눌렀을 때 호출됩니다.
+    """
+    global current_audio_thread, current_diarize_thread
+
+    # ⭐️ [수정] data에서 세션 ID를 가져옴
+    session_id = data.get("session_id")
+    if not session_id:
+        print("⚠️ 화자 분리 거부: 세션 ID가 없습니다.")
+        socketio.emit("diarization_result", {
+            'session_id': None,
+            'result_text': "[오류] 세션 ID가 전달되지 않았습니다."
+        })
+        return
+
+    # ⭐️ [안전 장치 1] 실시간 번역 스레드가 실행 중인지 확인
+    if current_audio_thread is not None and current_audio_thread.is_alive():
+        print("⚠️ 화자 분리 거부: 실시간 번역 세션이 실행 중입니다.")
+        socketio.emit("diarization_result", {
+            'session_id': session_id,
+            'result_text': "[오류] 실시간 번역을 먼저 중지해야 화자 분리를 실행할 수 있습니다."
+        })
+        return
+
+    # ⭐️ [안전 장치 2] 이미 다른 화자 분리 스레드가 실행 중인지 확인
+    if current_diarize_thread is not None and current_diarize_thread.is_alive():
+        print("⚠️ 화자 분리 거부: 이미 다른 세션의 화자 분리가 실행 중입니다.")
+        socketio.emit("diarization_result", {
+            'session_id': session_id,
+            'result_text': "[오류] 이미 다른 화자 분리 작업이 실행 중입니다. 잠시 후 시도하세요."
+        })
+        return
+
+    print(f"🔄 (화자 분리) 요청 수신... 대상 세션: {session_id}")
+
+    # ⭐️ [신규] 별도 스레드에서 화자 분리 실행 (CPU 작업이므로)
+    current_diarize_thread = threading.Thread(
+        target=run_diarization_thread,
+        args=(session_id,),
+        daemon=True
+    )
+    current_diarize_thread.start()
+
+
+# ⭐️ [신규] 화자 분리를 위한 스레드 함수
+def run_diarization_thread(session_id):
+    """
+    (백그라운드 스레드)
+    diarize_handler.py를 실행하고, 완료되면 결과를 클라이언트에 전송합니다.
+    """
+    global current_diarize_thread
+
+    try:
+        # diarize_handler.py의 메인 함수 호출
+        result_text = diarize_handler.run_diarization(session_id)
+
+        print(f"✅ (화자 분리) 완료. 세션: {session_id}")
+
+        socketio.emit("diarization_result", {
+            'session_id': session_id,
+            'result_text': result_text  # 화자 분리 결과 텍스트
+        })
+
+    except Exception as e:
+        print(f"❌ (화자 분리) 스레드 오류: {e}")
+        socketio.emit("diarization_result", {
+            'session_id': session_id,
+            'result_text': f"[오류] 화자 분리 중 심각한 오류 발생: {e}"
+        })
+    finally:
+        # 작업 완료 후 스레드 변수 정리
+        current_diarize_thread = None
+
+
 # --- ⭐️ [신규] 오디오 세션 중지 함수 ---
 def stop_audio_session(notify_client=True):
     """
@@ -293,6 +297,16 @@ def stop_audio_session(notify_client=True):
     if current_stop_event is not None and current_audio_thread is not None:
         print("🔄 [Session] 'stop_event' 전송. 스레드 중지 시도...")
         current_stop_event.set()
+
+        # ⭐️ [추가] 스레드가 멈추기 전에 큐에 쌓인 데이터를 강제로 비움
+        print("🔄 [Session] 오디오 백로그 큐 비우는 중...")
+        while not audio_q.empty():
+            try:
+                audio_q.get_nowait()
+            except queue.Empty:
+                break
+        print("✅ [Session] 큐 비우기 완료.")
+
         # 스레드가 완전히 종료될 때까지 최대 2초 대기
         current_audio_thread.join(timeout=2.0)
 
@@ -326,7 +340,6 @@ def start_new_audio_session(session_id):
     global current_audio_thread, current_stop_event
 
     # 1. (안전조치) 기존 스레드 중지 (클라이언트 알림 없이)
-    #    (사용자가 '중지'를 누르지 않고 바로 '시작'을 누른 경우 대비)
     stop_audio_session(notify_client=False)
 
     # 2. 새 stop_event 생성 (세션 ID는 인자로 받은 것 사용)
@@ -365,10 +378,8 @@ if __name__ == "__main__":
     # KoBART 모델 로드 스레드 시작
     threading.Thread(target=init_summary_model, daemon=True).start()
 
-    # ⭐️ [수정] 서버 시작 시 자동 오디오 시작 스레드 제거
     print(f"🌍 Socket.IO 서버 시작: http://{HOST}:{PORT} 에서 접속 가능")
     print("✅ (준비 완료) 클라이언트의 '번역 시작' 요청을 대기합니다...")
-    # ⭐️ (제거) threading.Thread(target=start_new_audio_session, daemon=True).start()
 
     # Socket.IO 서버 실행 (메인 스레드)
     socketio.run(app, host=HOST, port=PORT, debug=False, allow_unsafe_werkzeug=True)

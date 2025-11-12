@@ -120,7 +120,6 @@ def run_diarization(session_id):
     """
 
     # --- 1. 오디오 파일 확인 ---
-    # ⭐️ [수정] "wav" 하위 폴더에서 파일을 찾도록 경로 변경
     output_dir = "wav"
     audio_file = os.path.join(output_dir, f"{session_id}.wav")
 
@@ -133,11 +132,10 @@ def run_diarization(session_id):
     try:
         # --- 2. 오디오 로드 ---
         audio_data, sr = sf.read(audio_file, dtype='float32')
-        if audio_data.ndim > 1:  # 스테레오 -> 모노
+        if audio_data.ndim > 1:
             audio_data = np.mean(audio_data, axis=1)
         if sr != 16000:
             print(f"⚠️ 경고: 오디오 샘플레이트가 16kHz가 아닙니다. ({sr}Hz). 리샘플링 시도...")
-            # (resampling 로직 추가 - 간단한 방식)
             if sr > 16000:
                 step = int(sr / 16000)
                 audio_data = audio_data[::step]
@@ -152,7 +150,7 @@ def run_diarization(session_id):
         # --- 3. Whisper STT 실행 ---
         print("🔄 (1/4) 음성 인식(STT) 실행 중...")
         model = load_whisper_model()
-        result = model.transcribe(audio_data, batch_size=4)  # CPU 배치 크기
+        result = model.transcribe(audio_data, batch_size=4)
 
         # --- 4. 정렬 모델 실행 (단어 타임스탬프) ---
         print("🔄 (2/4) 타임스탬프 정렬 중...")
@@ -181,7 +179,6 @@ def run_diarization(session_id):
 
         diarize_result = diarize_model(audio_file)
 
-        # ⭐️ [수정] pyannote 3.x 호환성 해결 (KeyError: 'e' 수정)
         print("🔄 (3.5/4) 화자 분리 결과 포맷 변환 중...")
         diarize_segments = []
         for segment, track, speaker in diarize_result.itertracks(yield_label=True):
@@ -201,18 +198,16 @@ def run_diarization(session_id):
             return "\n".join(final_transcript)
 
         diarize_df = pd.DataFrame(diarize_segments)
-        # ⭐️ [수정] 여기까지 ---
 
         # --- 6. STT 결과와 화자 분리 결과 병합 ---
         print("🔄 (4/4) 화자와 텍스트 병합 중...")
-        final_result = whisperx.assign_word_speakers(diarize_df, result)  # ⭐️ diarize_df 사용
+        final_result = whisperx.assign_word_speakers(diarize_df, result)
 
         # --- 7. 결과 포맷팅 및 번역 ---
         print("✅ 분석 완료. 최종 텍스트 포맷팅 및 번역 중...")
 
-        current_speaker = None
-        current_transcript = ""
-
+        # ⭐️ [수정] 요청대로 "문장별"로 원문/번역을 나누도록 로직 변경
+        # (이전의 'current_speaker'와 합치는 로직 제거)
         for segment in final_result["segments"]:
             speaker = segment.get("speaker", "UNKNOWN")
             text = segment.get("text", "").strip()
@@ -220,20 +215,13 @@ def run_diarization(session_id):
             if not text:
                 continue
 
-            if speaker == current_speaker:
-                current_transcript += " " + text
-            else:
-                if current_speaker is not None and current_transcript:
-                    translated = translate_text(current_transcript)
-                    final_transcript.append(f"**{current_speaker}**: {current_transcript}\n*({translated})*\n")
+            # ⭐️ 각 문장별로 바로 번역 실행
+            translated = translate_text(text)
 
-                current_speaker = speaker
-                current_transcript = text
-
-        # 마지막 대화 저장
-        if current_speaker is not None and current_transcript:
-            translated = translate_text(current_transcript)
-            final_transcript.append(f"**{current_speaker}**: {current_transcript}\n*({translated})*\n")
+            # ⭐️ 원문(화자포함), 번역, 빈 줄 순서로 추가
+            final_transcript.append(f"**{speaker}**: {text}")
+            final_transcript.append(f"*({translated})*")
+            final_transcript.append("")  # 줄바꿈용 빈 줄
 
         if not final_transcript:
             return "[분석 결과] 인식된 텍스트가 없습니다."
@@ -251,10 +239,7 @@ def run_diarization(session_id):
 # 🧪 테스트용 (직접 실행 시)
 # ============================================
 if __name__ == "__main__":
-    # ⭐️ [수정] 테스트용 세션 ID (예시)
     TEST_SESSION_ID = "diarizeTest"
-
-    # ⭐️ [수정] 테스트 파일 경로도 "wav" 폴더를 확인
     test_audio_file = os.path.join("wav", f"{TEST_SESSION_ID}.wav")
 
     if HF_TOKEN == "DEFAULT_TOKEN_PLH" or not HF_TOKEN:

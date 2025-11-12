@@ -70,11 +70,23 @@
         gap: 10px;
         align-items: center;
     }
-    /* ⭐️ 오른쪽 컨테이너는 요약 버튼과 토글 메뉴만 포함 */
+    /* ⭐️ 오른쪽 컨테이너 수정 */
     #right-buttons {
         display: flex;
         gap: 10px;
-        align-items: flex-start; /* 드롭다운을 상단 정렬 */
+        align-items: center; /* ⭐️ 세로 정렬 (select 추가) */
+    }
+
+    /* ⭐️ [신규] 메인 페이지 세션 선택 드롭다운 */
+    #session-select-main {
+        padding: 8px 12px;
+        border-radius: 20px;
+        border: 1px solid var(--button-bg);
+        background: var(--menu-bg);
+        color: var(--text-color);
+        font-weight: bold;
+        max-width: 200px; /* 너무 길어지지 않게 */
+        height: 38px; /* 버튼과 높이 맞춤 */
     }
 
     /* ⭐️ [리팩토링] 모든 버튼 공통 스타일을 .all-btn 클래스로 통합 */
@@ -89,6 +101,7 @@
         transition: background 0.3s, color 0.3s, transform 0.2s;
         color: var(--text-color);
         white-space: nowrap; /* 텍스트 줄바꿈 방지 */
+        height: 38px; /* ⭐️ select와 높이 맞춤 */
     }
     .all-btn:hover {
         background: var(--button-hover-bg);
@@ -102,6 +115,14 @@
     }
     #clear-log-btn:hover {
         background: var(--clear-hover-bg);
+    }
+
+    /* ⭐️ [신규] 화자 분석 버튼 스타일 (파란색 계열) */
+    #diarize-btn {
+        background: #0984e3;
+    }
+    #diarize-btn:hover {
+        background: #0c70b8;
     }
 
     /* ⭐️ [수정] 세션 제어 버튼 스타일 */
@@ -131,11 +152,8 @@
     #utility-dropdown-menu {
         display: none; /* JS로 토글 */
         position: absolute;
-
-        /* ⭐️ 오른쪽 최상단에 고정 */
-        top: 50px;
+        top: 50px; /* ⭐️ 높이 수정 */
         right: 0;
-
         padding: 10px;
         background: var(--menu-bg);
         border-radius: 10px;
@@ -144,7 +162,7 @@
         flex-direction: column;
         gap: 10px;
         border: 1px solid rgba(255,255,255,0.1);
-        width: 240px; /* 드롭다운 메뉴 너비 고정 */
+        width: 240px;
     }
 
     /* ⭐️ 드롭다운 메뉴 내부 버튼 스타일 조정 (언어/테마 버튼 기준) */
@@ -153,6 +171,7 @@
         box-shadow: none;
         border-radius: 8px;
         padding: 10px 15px;
+        height: auto; /* ⭐️ 높이 자동 */
     }
 
     /* ⭐️ 설정 항목 스타일 (줌/폰트 컨트롤을 위해 재정의) */
@@ -310,7 +329,13 @@
         </div>
 
         <div id="right-buttons">
-            <button id="toggle-summary" class="all-btn">요약 새 창 열기</button>
+            <select id="session-select-main">
+                <option value="">[세션 로드 중...]</option>
+            </select>
+
+            <button id="toggle-summary" class="all-btn">요약</button>
+
+            <button id="diarize-btn" class="all-btn" title="선택한 세션을 분석합니다. (CPU로 실행되어 매우 오래 걸릴 수 있습니다)">화자 분석</button>
 
             <button id="utility-menu-toggle" class="all-btn" title="기타 기능">•••</button>
 
@@ -348,7 +373,7 @@
     const socket = io();
     const body = document.body;
     const logDiv = document.getElementById("log");
-    const toggleBtn = document.getElementById("toggle-summary");
+    const toggleBtn = document.getElementById("toggle-summary"); // ⭐️ '요약' 버튼
     const logs = [];
 
     // ⭐️ 유틸리티 메뉴 관련 변수
@@ -366,6 +391,12 @@
     const fontDecreaseBtn = document.getElementById("font-decrease-btn");
     const fontIncreaseBtn = document.getElementById("font-increase-btn");
     const fontSizeLevelSpan = document.getElementById("font-size-level");
+
+    // ⭐️ [신규] 메인 페이지 세션 드롭다운
+    const sessionSelectMain = document.getElementById("session-select-main");
+
+    // ⭐️ [신규] 화자 분석 버튼 변수
+    const diarizeBtn = document.getElementById("diarize-btn");
 
     // ⭐️ 로그 클리어 버튼 변수
     const clearLogBtn = document.getElementById("clear-log-btn");
@@ -397,9 +428,11 @@
         logDiv.scrollTop = logDiv.scrollHeight;
     }
 
-    // --- 페이지 로드 시 초기 메시지 ---
+    // --- 페이지 로드 시 ---
     document.addEventListener("DOMContentLoaded", () => {
         addSystemMessage("서버 준비 완료. 'Start Translation'을 눌러 세션을 시작하세요.");
+
+        // ⭐️ [제거] 페이지 로드 시점이 아닌 '연결 후'에 요청하도록 이동
     });
 
 
@@ -413,7 +446,7 @@
         }
     });
 
-    // ⭐️ 세션 제어 버튼 클릭 이벤트 (로직 분리)
+    // ⭐️ 세션 제어 버튼 클릭 이벤트
     sessionControlBtn.addEventListener('click', () => {
         const currentText = sessionControlBtn.textContent;
 
@@ -458,6 +491,36 @@
     }
 
 
+    // ⭐️ [신규] 메인 페이지의 '화자 분석' 버튼 클릭 리스너
+    diarizeBtn.addEventListener('click', () => {
+        const selectedSessionId = sessionSelectMain.value;
+
+        // [안전 장치 1] 세션 선택 확인
+        if (!selectedSessionId) {
+            alert("먼저 분석할 세션을 선택해주세요.");
+            return;
+        }
+
+        // [안전 장치 2] 실시간 번역이 실행 중인지 확인
+        if (sessionControlBtn.textContent === 'End Session') {
+            alert("실시간 번역을 먼저 중지해야 화자 분리를 실행할 수 있습니다.");
+            return;
+        }
+
+        if (confirm(`[${selectedSessionId}] 세션의 화자 분리 분석을 시작하시겠습니까?\n\n(실시간 로그가 지워지고 분석 결과가 표시됩니다)\n(CPU로 실행되어 오디오 길이에 따라 매우 오랜 시간이 소요됩니다)`)) {
+            // 1. 메인 로그 비우기
+            logs.length = 0;
+            renderLogs(logDiv, logs, false);
+
+            // 2. 로딩 메시지 표시
+            addSystemMessage(`[세션 '${selectedSessionId}' 화자 분리 분석 중...]\n\n(CPU로 실행되므로 오디오 길이에 따라 몇 분에서 몇십 분까지 소요될 수 있습니다.)`);
+
+            // 3. 서버에 *선택된 세션 ID*로 화자 분리 요청
+            socket.emit("request_diarization", { session_id: selectedSessionId });
+        }
+    });
+
+
     // ⭐️ 유틸리티 메뉴 토글 기능
     utilityMenuToggle.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -492,7 +555,7 @@
         console.log(`🎧 언어 변경 요청: ${newLang} -> ko`);
     });
 
-    // ⭐️ 언어 버튼 UI 업데이트 함수 (통합 버튼용)
+    // ⭐️ 언어 버튼 UI 업데이트 함수
     function updateLangButton(lang) {
         if (lang === "en") {
             langToggleBtn.textContent = "🇺🇸 영어 선택 중";
@@ -511,34 +574,16 @@
     });
 
 
-    // ⭐️ [신규] 메인 창에 '화자 분리 요청' 헬퍼 함수 추가
-    window.requestDiarizationFromPopup = (sessionId) => {
-        // [안전 장치] 실시간 번역이 실행 중인지 확인
-        if (sessionControlBtn.textContent === 'End Session') {
-            alert("실시간 번역을 먼저 중지해야 화자 분리를 실행할 수 있습니다.");
-            return;
-        }
+    // ⭐️ [제거] window.requestDiarizationFromPopup
 
-        // 팝업 창에 "로딩 중" 메시지 표시
+    // ⭐️ [수정] 팝업 창 통신 함수 (요약/이름변경만 남김)
+    window.requestSpecificSummaryFromPopup = (sessionId) => {
+        // (이 함수는 이제 팝업 내부가 아닌 메인 페이지의 '요약' 버튼이 사용함)
+        // (단, 팝업이 열려있을 때 팝업 내부의 '이름 변경' 후 요약 갱신을 위해 남겨둠)
+        socket.emit("request_specific_summary", { session_id: sessionId });
         if (summaryWindow && !summaryWindow.closed) {
             const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-            if (summaryTextDiv) {
-                summaryTextDiv.textContent = `[세션 '${sessionId}' 화자 분리 분석 중...]\n\n(CPU로 실행되므로 오디오 길이에 따라 몇 분에서 몇십 분까지 소요될 수 있습니다. 이 창을 닫아도 분석은 계속됩니다.)`;
-            }
-        }
-
-        // 서버에 화자 분리 요청
-        socket.emit("request_diarization", { session_id: sessionId });
-    }
-
-    // ⭐️ (기존) 팝업 창 통신 함수 (2개)
-    window.requestSpecificSummaryFromPopup = (sessionId) => {
-        if (sessionId) {
-            socket.emit("request_specific_summary", { session_id: sessionId });
-            if (summaryWindow && !summaryWindow.closed) {
-                const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-                if (summaryTextDiv) summaryTextDiv.textContent = '[선택한 세션 요약 로드 중...]';
-            }
+            if (summaryTextDiv) summaryTextDiv.textContent = '[선택한 세션 요약 로드 중...]';
         }
     }
     window.requestRenameSessionFromPopup = (oldId, newId) => {
@@ -575,7 +620,7 @@
     fontIncreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize + fontSizeStep));
     fontDecreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize - fontSizeStep));
 
-    // ⭐️ 테마 적용 함수 (팝업 동기화 포함)
+    // ⭐️ 테마 적용 함수 (팝업 동기화) - [수정됨]
     function applyTheme(theme) {
         if (theme === 'light') {
             body.classList.add('light-mode');
@@ -599,43 +644,35 @@
             const popupInputBg = isLight ? '#fff' : '#444';
             const popupSummaryBg = isLight ? '#f9f9f9' : '#2a2a2a';
             const renameBtnBg = popupHighlight; // ⭐️ 이름 변경 버튼 색상
-            const diarizeBtnBg = isLight ? '#007bff' : '#0984e3'; // ⭐️ 화자 분리 버튼 색상
 
             doc.body.style.background = popupBg;
             doc.body.style.color = popupText;
             const h1Element = doc.querySelector('h1');
             if(h1Element) h1Element.style.color = popupHighlight;
-            const sessionSelectElement = doc.getElementById('session-select');
-            if(sessionSelectElement) {
-                sessionSelectElement.style.borderColor = popupBorder;
-                sessionSelectElement.style.background = popupInputBg;
-                sessionSelectElement.style.color = popupText;
-            }
+
+            // ⭐️ [제거] 팝업 내 select 요소 (없어짐)
+
             const summaryTextElement = doc.getElementById('summary-text');
             if(summaryTextElement) {
                 summaryTextElement.style.borderColor = popupBorder;
                 summaryTextElement.style.background = popupSummaryBg;
             }
-            // ⭐️ [수정] 2개 버튼 색상 동기화
+            // ⭐️ [수정] 1개 버튼 색상 동기화
             const renameBtnElement = doc.getElementById('rename-btn');
             if(renameBtnElement) {
                 renameBtnElement.style.background = renameBtnBg;
                 renameBtnElement.style.color = popupText;
             }
-            const diarizeBtnElement = doc.getElementById('diarize-btn');
-            if(diarizeBtnElement) {
-                diarizeBtnElement.style.background = diarizeBtnBg;
-                diarizeBtnElement.style.color = popupText;
-            }
         }
     }
 
 
-    // ⭐️ [수정] 팝업 창 열기 함수 (버튼 추가 및 스크립트 추가)
-    function openSummaryWindow() {
+    // ⭐️ [수정] 팝업 창 열기 함수 (세션 ID를 인자로 받음)
+    function openSummaryWindow(sessionId) { // ⭐️ 세션 ID를 받음
         if (summaryWindow && !summaryWindow.closed) {
             summaryWindow.focus();
-            socket.emit("request_summary", {});
+            // ⭐️ 이미 열려있으면 요약만 다시 요청
+            socket.emit("request_specific_summary", { session_id: sessionId });
             return;
         }
 
@@ -653,177 +690,229 @@
             const renameBtnBg = popupHighlight; // ⭐️ 이름 변경 버튼
             const renameBtnColor = popupText;
             const renameBtnHoverBg = isLight ? '#0056b3' : '#10ac84';
-            const diarizeBtnBg = isLight ? '#007bff' : '#0984e3'; // ⭐️ 화자 분리 버튼
-            const diarizeBtnHoverBg = isLight ? '#0056b3' : '#0c70b8'; // ⭐️ 화자 분리 호버
+            // ⭐️ [제거] 화자 분리 버튼 관련 색상
 
             const popupHTML = `
-                <!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>회의 요약 및 분석</title>
+                <!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>회의 요약</title>
                 <style>
                     body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: ${popupBg}; color: ${popupText}; line-height: 1.6; transition: background 0.3s, color 0.3s; }
-                    h1 { text-align: center; color: ${popupHighlight}; margin-bottom: 20px; font-size: 1.5em; }
-                    #session-controls { display: flex; gap: 10px; margin-bottom: 15px; align-items: stretch; }
-                    #session-controls label { font-weight: bold; padding: 8px 0; }
-                    #session-select { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid ${popupBorder}; background: ${popupInputBg}; color: ${popupText}; font-size: 0.9em; }
+                    h1 { text-align: center; color: ${popupHighlight}; margin-bottom: 5px; font-size: 1.5em; }
+                    /* ⭐️ [신규] 세션 ID 표시 */
+                    #session-info {
+                        text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 0.9em;
+                        color: ${isLight ? '#555' : '#aaa'};
+                    }
+                    #session-controls { display: flex; gap: 10px; margin-bottom: 15px; justify-content: flex-end; }
 
-                    /* ⭐️ 버튼 공통 스타일 */
-                    #rename-btn, #diarize-btn {
+                    #rename-btn {
                         padding: 8px 12px; border-radius: 5px; border: none; background: ${renameBtnBg}; color: ${renameBtnColor}; cursor: pointer; font-weight: bold; font-size: 0.9em; transition: background 0.3s;
                     }
                     #rename-btn:hover { background: ${renameBtnHoverBg}; }
 
-                    /* ⭐️ 화자 분리 버튼 (파란색 계열) */
-                    #diarize-btn {
-                        background: ${diarizeBtnBg};
-                    }
-                    #diarize-btn:hover {
-                        background: ${diarizeBtnHoverBg};
-                    }
-
                     #summary-text { white-space: pre-wrap; border: 1px solid ${popupBorder}; padding: 15px; border-radius: 8px; background: ${popupSummaryBg}; min-height: 300px; }
                 </style>
                 </head><body>
-                    <h1>회의 요약 및 분석</h1>
+                    <h1>회의 요약</h1>
+                    <div id="session-info">세션: ${sessionId}</div>
+
                     <div id="session-controls">
-                        <label for="session-select">세션:</label>
-                        <select id="session-select"><option value="">[로드 중...]</option></select>
-
-                        <button id="diarize-btn" title="CPU로 실행되어 매우 오래 걸릴 수 있습니다.">화자 분리</button>
-
                         <button id="rename-btn">이름 변경</button>
                     </div>
                     <div id="summary-text">[요약 생성 중...]</div>
 
                     <script>
-                        const sessionSelect = document.getElementById('session-select');
                         const renameBtn = document.getElementById('rename-btn');
-
-                        // ⭐️ [신규] 화자 분리 버튼 변수
-                        const diarizeBtn = document.getElementById('diarize-btn');
-
-                        // (기존) 요약 요청 리스너
-                        sessionSelect.addEventListener('change', () => {
-                            const selectedSessionId = sessionSelect.value;
-                            if (selectedSessionId && window.opener && typeof window.opener.requestSpecificSummaryFromPopup === 'function') {
-                                window.opener.requestSpecificSummaryFromPopup(selectedSessionId);
-                            }
-                        });
 
                         // (기존) 이름 변경 리스너
                         renameBtn.addEventListener('click', () => {
-                            const oldId = sessionSelect.value;
-                            if (!oldId || oldId.startsWith('[')) { alert("이름을 변경할 세션이 선택되지 않았습니다."); return; }
+                            const oldId = "${sessionId}"; // ⭐️ 주입된 세션 ID 사용
+                            if (!oldId) { alert("세션 ID를 알 수 없습니다."); return; }
                             const newId = prompt("새로운 세션 이름을 입력하세요:", oldId);
                             if (newId === null || newId.trim() === "" || newId.trim() === oldId) { return; }
                             if (window.opener && typeof window.opener.requestRenameSessionFromPopup === 'function') {
                                 window.opener.requestRenameSessionFromPopup(oldId, newId.trim());
                             }
                         });
-
-                        // ⭐️ [신규] 화자 분리 요청 리스너
-                        diarizeBtn.addEventListener('click', () => {
-                            const selectedSessionId = sessionSelect.value;
-                            if (!selectedSessionId || selectedSessionId.startsWith('[')) {
-                                alert("화자 분리를 실행할 세션이 선택되지 않았습니다.");
-                                return;
-                            }
-                            if (confirm("화자 분리 분석을 시작하시겠습니까?\\n\\nCPU로 실행되어 오디오 길이에 따라 매우 오랜 시간(몇 분~몇십 분)이 소요될 수 있습니다.\\n(실시간 번역이 실행 중인 경우 작동하지 않습니다)")) {
-                                if (window.opener && typeof window.opener.requestDiarizationFromPopup === 'function') {
-                                    window.opener.requestDiarizationFromPopup(selectedSessionId);
-                                }
-                            }
-                        });
-
                     <\/script>
                 </body></html>
             `;
             summaryWindow.document.write(popupHTML);
             summaryWindow.document.close();
-            socket.emit("request_summary", {});
+            // ⭐️ (제거) socket.emit("request_summary", {}); (버튼 클릭시 이미 요청함)
         } else {
             alert("팝업 창이 차단되었습니다. 브라우저 설정을 확인해주세요.");
         }
     }
 
-    toggleBtn.addEventListener("click", openSummaryWindow);
+    // ⭐️ [수정] 요약 버튼 클릭 리스너
+    toggleBtn.addEventListener("click", () => {
+        const selectedSessionId = sessionSelectMain.value;
+        if (!selectedSessionId) {
+            alert("먼저 '요약'할 세션을 선택해주세요.");
+            return;
+        }
+
+        // 1. 팝업창 열기 (세션 ID 전달)
+        openSummaryWindow(selectedSessionId);
+
+        // 2. 서버에 요약 요청
+        socket.emit("request_specific_summary", { session_id: selectedSessionId });
+    });
 
     // ----------------------------------------------------
     // ✨ Socket.IO 연동 로직
     // ----------------------------------------------------
-    socket.on("connect", () => console.log("✅ 서버 연결 성공"));
 
-    // 1. 실시간 번역 로그 수신
+    // ⭐️ [수정] "connect" 핸들러에 세션 목록 요청 추가
+    socket.on("connect", () => {
+        console.log("✅ 서버 연결 성공");
+
+        // ⭐️ [수정] DOM 로드 시점이 아닌, '연결 성공 시' 세션 목록 요청
+        console.log("🚀 'request_session_list' 요청 전송");
+        socket.emit("request_session_list", {});
+    });
+
+    // 1. 실시간 번역 로그 수신 (동일)
     socket.on("partial_translation", data => {
         logs.push(data);
         renderLogs(logDiv, logs, true);
     });
 
-    // 2. 서버에서 요약 데이터 수신 (요약 창 업데이트)
-    // (⭐️ KOBART 요약과 화자 분리 요약 결과를 모두 이 핸들러가 처리합니다)
+    // 2. 서버에서 요약 데이터 수신 (팝업 창 업데이트)
     socket.on("summary_data_updated", data => {
-        console.log("✅ 요약/분석 데이터 수신:", data);
-        if (!summaryWindow || summaryWindow.closed) return;
-        const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-        if (summaryTextDiv) summaryTextDiv.textContent = data.summary;
+        console.log("✅ 요약 데이터 수신:", data);
 
-        if (data.all_sessions) {
-            const sessionSelect = summaryWindow.document.getElementById('session-select');
-            if (sessionSelect) {
-                sessionSelect.innerHTML = "";
-                data.all_sessions.forEach(sessionId => {
-                    const option = summaryWindow.document.createElement('option');
-                    option.value = sessionId;
-                    option.textContent = sessionId;
-                    sessionSelect.appendChild(option);
-                });
-            }
-        }
-        if (data.current_session_id) {
-            const sessionSelect = summaryWindow.document.getElementById('session-select');
-            if (sessionSelect) sessionSelect.value = data.current_session_id;
+        // ⭐️ [수정] 팝업 창 내용만 업데이트
+        if (summaryWindow && !summaryWindow.closed) {
+            const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
+            if (summaryTextDiv) summaryTextDiv.textContent = data.summary;
+
+            // ⭐️ [신규] 이름 변경 시 팝업의 세션 ID도 갱신
+            const sessionInfoDiv = summaryWindow.document.getElementById('session-info');
+            if(sessionInfoDiv) sessionInfoDiv.textContent = `세션: ${data.current_session_id}`;
         }
     });
 
-    // ⭐️ 3. 서버에서 언어 변경 완료 수신 (필요 시)
+    // ⭐️ [신규] 3. 화자 분리 결과 수신 (메인 로그에 출력)
+    socket.on("diarization_result", data => {
+        console.log(`✅ 화자 분리 결과 수신: ${data.session_id}`);
+
+        // 1. "로딩 중" 메시지 삭제 (전체 클리어)
+        logDiv.innerHTML = "";
+
+        // 2. 시스템 메시지 추가
+        if(data.session_id) {
+            addSystemMessage(`--- '${data.session_id}' 화자 분리 완료 ---`);
+        } else {
+            addSystemMessage(`--- 화자 분리 결과 ---`);
+        }
+
+        // 3. 결과를 한 줄씩 분리하여 로그에 HTML로 직접 추가 (동일)
+        const lines = data.result_text.split('\n');
+
+        lines.forEach(line => {
+            if (line.startsWith('**SPEAKER_')) {
+                // 원문 라인
+                const parts = line.split('**:');
+                const speaker = parts[0].replace(/\*\*/g, '');
+                const originalText = parts[1] ? parts[1].trim() : "(내용 없음)";
+
+                const entry = document.createElement("div");
+                entry.classList.add("log-entry");
+
+                const speakerDiv = document.createElement("div");
+                speakerDiv.classList.add("timestamp");
+                speakerDiv.textContent = speaker;
+
+                const originalDiv = document.createElement("div");
+                originalDiv.classList.add("original");
+                originalDiv.textContent = originalText;
+                originalDiv.style.fontSize = `${currentFontSize}px`;
+
+                entry.appendChild(speakerDiv);
+                entry.appendChild(originalDiv);
+                logDiv.appendChild(entry);
+                setTimeout(() => entry.classList.add("show"), 10);
+
+            } else if (line.startsWith('*(') && line.endsWith(')*')) {
+                // 번역 라인
+                const translatedText = line.substring(2, line.length-2);
+
+                const translatedDiv = document.createElement("div");
+                translatedDiv.classList.add("translated");
+                translatedDiv.textContent = translatedText;
+                translatedDiv.style.fontSize = `${currentFontSize}px`;
+
+                const lastEntry = logDiv.lastChild;
+                if(lastEntry && lastEntry.classList.contains('log-entry')) {
+                    lastEntry.appendChild(translatedDiv);
+                }
+            }
+        });
+        logDiv.scrollTop = 0; // 맨 위로 스크롤
+    });
+
+    // ⭐️ [신규] 4. 메인 페이지 세션 목록 업데이트
+    socket.on("session_list_updated", data => {
+        console.log("✅ 세션 목록 수신:", data.all_sessions);
+        if (sessionSelectMain) {
+            sessionSelectMain.innerHTML = ""; // 목록 비우기
+            if (data.all_sessions && data.all_sessions.length > 0) {
+                data.all_sessions.forEach(sessionId => {
+                    const option = document.createElement('option');
+                    option.value = sessionId;
+                    option.textContent = sessionId;
+                    sessionSelectMain.appendChild(option);
+                });
+                // ⭐️ [신규] 가장 최근 세션을 자동으로 선택
+                if (data.latest_session) {
+                    sessionSelectMain.value = data.latest_session;
+                }
+            } else {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "[세션 없음]";
+                sessionSelectMain.appendChild(option);
+            }
+        }
+    });
+
+    // ⭐️ 5. 서버에서 언어 변경 완료 수신 (필요 시)
     socket.on("language_changed", data => {
         console.log(`✅ 서버가 언어 변경 확인: ${data.language}`);
     });
 
-    // ⭐️ 4. 서버로부터 새 세션이 시작되었음을 확인
+    // ⭐️ 6. 서버로부터 새 세션이 시작되었음을 확인
     socket.on("new_session_started", data => {
         console.log(`✅ 서버가 새 세션 시작 확인: ${data.session_id}`);
-
-        // 1. 로컬 로그 배열 비우기
+        // ... (기존 로직 동일) ...
         logs.length = 0;
         renderLogs(logDiv, logs, false);
-
-        // 2. 버튼 텍스트와 스타일 변경 (활성 상태)
         sessionControlBtn.textContent = "End Session";
         sessionControlBtn.classList.add("session-active");
-
-        // 3. 시스템 메시지 추가
         addSystemMessage(`--- 새 세션 '${data.session_id}'이(가) 시작되었습니다. ---`);
+
+        // ⭐️ [신규] 새 세션이 시작되면 세션 목록을 즉시 갱신
+        socket.emit("request_session_list", {});
     });
 
-    // ⭐️ 5. 세션 시작 실패 시
+    // ⭐️ 7. 세션 시작 실패 시 (동일)
     socket.on("session_start_failed", data => {
         console.error(`❌ 세션 시작 실패: ${data.error}`);
         addSystemMessage(`[오류] 세션 시작 실패: ${data.error}`);
     });
 
-    // ⭐️ 6. 서버로부터 세션이 중지되었음을 확인
+    // ⭐️ 8. 서버로부터 세션이 중지되었음을 확인
     socket.on("session_stopped", data => {
         console.log(`✅ 서버가 세션 중지 확인: ${data.message}`);
-
-        // 1. 버튼 텍스트와 스타일 복원 (비활성 상태)
+        // ... (기존 로직 동일) ...
         sessionControlBtn.textContent = "Start Translation";
         sessionControlBtn.classList.remove("session-active");
-
-        // 2. 시스템 메시지 추가
         addSystemMessage(`--- ${data.message} ---`);
     });
 
 
-    // ⭐️ 로그 렌더링 함수 (동적 폰트 크기 적용)
+    // ⭐️ 로그 렌더링 함수 (실시간 전용)
     function renderLogs(container, dataLogs, scrollToBottom=false){
         container.innerHTML = "";
         dataLogs.forEach(data => {
