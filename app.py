@@ -8,13 +8,15 @@ from db_handler import init_db, get_latest_session_id, fetch_data_from_db, get_a
 from audio_processor import main_audio_streaming
 from summary_handler import load_kobart_model, summarize_text
 
+import diarize_handler
+
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # --- ⭐️ [수정] 오디오 스레드 관리를 위한 전역 변수 ---
 current_audio_thread = None
 current_stop_event = None
-
+current_diarize_thread = None
 
 # ----------------------------------------------------
 
@@ -73,6 +75,75 @@ def handle_summary_request(data):
             'summary': f"[요약 생성 실패: {e}]"
         })
 
+
+@socketio.on("request_diarization")
+def handle_diarization_request(data):
+    """
+    클라이언트가 요약 창에서 "화자 분리" 버튼을 눌렀을 때 호출됩니다.
+    """
+    global current_audio_thread, current_diarize_thread
+    session_id = data.get("session_id")
+    if not session_id:
+        return
+
+    # ⭐️ [안전 장치 1] 실시간 번역 스레드가 실행 중인지 확인
+    if current_audio_thread is not None and current_audio_thread.is_alive():
+        print("⚠️ 화자 분리 거부: 실시간 번역 세션이 실행 중입니다.")
+        socketio.emit("summary_data_updated", {
+            'current_session_id': session_id,
+            'summary': "[오류] 실시간 번역을 먼저 중지해야 화자 분리를 실행할 수 있습니다."
+        })
+        return
+
+    # ⭐️ [안전 장치 2] 이미 다른 화자 분리 스레드가 실행 중인지 확인
+    if current_diarize_thread is not None and current_diarize_thread.is_alive():
+        print("⚠️ 화자 분리 거부: 이미 다른 세션의 화자 분리가 실행 중입니다.")
+        socketio.emit("summary_data_updated", {
+            'current_session_id': session_id,
+            'summary': "[오류] 이미 다른 화자 분리 작업이 실행 중입니다. 잠시 후 시도하세요."
+        })
+        return
+
+    print(f"🔄 (화자 분리) 요청 수신... 세션: {session_id}")
+
+    # ⭐️ [신규] 별도 스레드에서 화자 분리 실행 (CPU 작업이므로)
+    current_diarize_thread = threading.Thread(
+        target=run_diarization_thread,
+        args=(session_id,),
+        daemon=True
+    )
+    current_diarize_thread.start()
+
+
+# ⭐️ [신규] 화자 분리를 위한 스레드 함수
+def run_diarization_thread(session_id):
+    """
+    (백그라운드 스레드)
+    diarize_handler.py를 실행하고, 완료되면 결과를 클라이언트에 전송합니다.
+    """
+    global current_diarize_thread
+
+    try:
+        # diarize_handler.py의 메인 함수 호출
+        summary = diarize_handler.run_diarization(session_id)
+
+        print(f"✅ (화자 분리) 완료. 세션: {session_id}")
+
+        # 클라이언트(요약 팝업)에 최종 결과 전송
+        socketio.emit("summary_data_updated", {
+            'current_session_id': session_id,
+            'summary': summary  # 화자 분리 결과 텍스트
+        })
+
+    except Exception as e:
+        print(f"❌ (화자 분리) 스레드 오류: {e}")
+        socketio.emit("summary_data_updated", {
+            'current_session_id': session_id,
+            'summary': f"[오류] 화자 분리 중 심각한 오류 발생: {e}"
+        })
+    finally:
+        # 작업 완료 후 스레드 변수 정리
+        current_diarize_thread = None
 
 # --- ⭐️ [신규] 🌐 언어 변경 기능 ---
 @socketio.on("change_language")
