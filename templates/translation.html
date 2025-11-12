@@ -117,13 +117,31 @@
         background: var(--clear-hover-bg);
     }
 
-    /* ⭐️ [이전] 화자 분석 버튼 스타일 (파란색 계열) - 이 섹션을 삭제하거나 주석 처리했습니다. */
-    /* #diarize-btn {
+    /* ⭐️ [수정] 드롭다운 내부 버튼 스타일 (diarize-btn, delete-btn) */
+    #utility-dropdown-menu .all-btn {
+        width: 100%;
+        box-shadow: none;
+        border-radius: 8px;
+        padding: 10px 15px;
+        height: auto; /* ⭐️ 높이 자동 */
+    }
+
+    #utility-dropdown-menu #diarize-btn {
         background: #0984e3;
     }
-    #diarize-btn:hover {
+    #utility-dropdown-menu #diarize-btn:hover {
         background: #0c70b8;
-    } */
+    }
+
+    /* ⭐️ [신규] 세션 삭제 버튼 스타일 (붉은색 계열) */
+    #utility-dropdown-menu #delete-btn {
+        background: #ff6347;
+        color: #fff;
+    }
+    #utility-dropdown-menu #delete-btn:hover {
+        background: #d9534f;
+    }
+
 
     /* ⭐️ [수정] 세션 제어 버튼 스타일 */
     #session-control-btn {
@@ -165,16 +183,7 @@
         width: 240px;
     }
 
-    /* ⭐️ 드롭다운 메뉴 내부 버튼 스타일 조정 (언어/테마 버튼 기준) */
-    #utility-dropdown-menu .all-btn {
-        width: 100%;
-        box-shadow: none;
-        border-radius: 8px;
-        padding: 10px 15px;
-        height: auto; /* ⭐️ 높이 자동 */
-    }
-
-    /* ⭐️ 설정 항목 스타일 (줌/폰트 컨트롤을 위해 재정의) */
+    /* ... (setting-item, zoom-controls 등 나머지 스타일은 동일) ... */
     .setting-item {
         margin-bottom: 5px;
         padding: 0;
@@ -195,8 +204,6 @@
         font-weight: normal;
         padding-left: 5px;
     }
-
-    /* ⭐️ 줌 컨트롤 스타일: 양옆 정렬된 한 줄 구조 (이전 요청의 최종 결과 복원) */
     .zoom-controls {
         display: flex;
         justify-content: space-between;
@@ -207,8 +214,6 @@
         border: 1px solid var(--button-bg);
         height: 40px;
     }
-
-    /* ⭐️ zoom-controls 내부 버튼 스타일 (1:2:1 비율 유지) */
     .zoom-controls button {
         padding: 0 10px;
         height: 100%;
@@ -220,8 +225,7 @@
         font-weight: bold;
         box-shadow: none;
         transition: background 0.3s;
-
-        flex-grow: 1; /* 1/4 차지 */
+        flex-grow: 1;
         flex-shrink: 0;
         font-size: 1.0em;
         width: auto;
@@ -230,13 +234,11 @@
         background: var(--button-hover-bg);
         transform: none;
     }
-
-    /* ⭐️ 설정 값 표시 (span) 스타일 (중앙 영역) */
     #zoom-level, #font-size-level {
         font-size: 1.0em;
         font-weight: bold;
         text-align: center;
-        flex-grow: 2; /* 2/4 차지 */
+        flex-grow: 2;
         background: var(--menu-bg);
         color: var(--text-color);
         display: flex;
@@ -245,7 +247,6 @@
         padding: 0 5px;
         height: 100%;
         white-space: nowrap;
-
         border-left: 1px solid rgba(255, 255, 255, 0.1);
         border-right: 1px solid rgba(255, 255, 255, 0.1);
     }
@@ -340,6 +341,8 @@
 
                 <button id="diarize-btn" class="all-btn" title="선택한 세션을 분석합니다. (CPU로 실행되어 매우 오래 걸릴 수 있습니다)">화자 분석</button>
 
+                <button id="delete-btn" class="all-btn" title="선택한 세션을 DB와 wav 폴더에서 영구 삭제합니다">세션 삭제</button>
+
                 <button class="all-btn" id="lang-toggle-btn">🇺🇸 영어 선택 중</button>
 
                 <button id="toggle-theme" class="all-btn">🌙 다크 모드</button>
@@ -397,6 +400,9 @@
 
     // ⭐️ [신규] 화자 분석 버튼 변수
     const diarizeBtn = document.getElementById("diarize-btn");
+
+    // ⭐️ [신규] 세션 삭제 버튼 변수
+    const deleteBtn = document.getElementById("delete-btn");
 
     // ⭐️ 로그 클리어 버튼 변수
     const clearLogBtn = document.getElementById("clear-log-btn");
@@ -489,8 +495,9 @@
     }
 
 
-    // ⭐️ [신규] 메인 페이지의 '화자 분석' 버튼 클릭 리스너
+    // ⭐️ [신규] '화자 분석' 버튼 클릭 리스너 (드롭다운 메뉴 내부)
     diarizeBtn.addEventListener('click', () => {
+        utilityDropdownMenu.style.display = 'none'; // ⭐️ 메뉴 닫기
         const selectedSessionId = sessionSelectMain.value;
 
         // [안전 장치 1] 세션 선택 확인
@@ -505,7 +512,7 @@
             return;
         }
 
-        if (confirm(`[${selectedSessionId}] 세션의 화자 분리 분석을 시작하시겠습니까?\n\n(실시간 로그가 지워지고 분석 결과가 표시됩니다)\n(CPU로 실행되어 오디오 길이에 따라 매우 오랜 시간이 소요될 수 있습니다)`)) {
+        if (confirm(`[${selectedSessionId}] 세션의 화자 분리 분석을 시작하시겠습니까?\n\n(실시간 로그가 지워지고 분석 결과가 표시됩니다)\n(CPU로 실행되어 오디오 길이에 따라 매우 오랜 시간이 소요됩니다)`)) {
             // 1. 메인 로그 비우기
             logs.length = 0;
             renderLogs(logDiv, logs, false);
@@ -515,6 +522,29 @@
 
             // 3. 서버에 *선택된 세션 ID*로 화자 분리 요청
             socket.emit("request_diarization", { session_id: selectedSessionId });
+        }
+    });
+
+    // ⭐️ [신규] '세션 삭제' 버튼 클릭 리스너 (드롭다운 메뉴 내부)
+    deleteBtn.addEventListener('click', () => {
+        utilityDropdownMenu.style.display = 'none'; // ⭐️ 메뉴 닫기
+        const selectedSessionId = sessionSelectMain.value;
+
+        // [안전 장치 1] 세션 선택 확인
+        if (!selectedSessionId) {
+            alert("먼저 삭제할 세션을 선택해주세요.");
+            return;
+        }
+
+        // [안전 장치 2] 실시간 번역이 실행 중인지 확인
+        if (sessionControlBtn.textContent === 'End Session') {
+            alert("실시간 번역이 실행 중일 때는 세션을 삭제할 수 없습니다.");
+            return;
+        }
+
+        if (confirm(`[${selectedSessionId}] 세션을 영구적으로 삭제하시겠습니까?\n\n(DB 기록과 .wav 파일이 모두 삭제되며, 이 작업은 되돌릴 수 없습니다.)`)) {
+            console.log(`🚀 'request_delete_session' 요청 전송 (ID: ${selectedSessionId})`);
+            socket.emit("request_delete_session", { session_id: selectedSessionId });
         }
     });
 
@@ -572,10 +602,8 @@
     });
 
 
-    // ⭐️ [수정] 팝업 창 통신 함수 (요약만 남김)
+    // ⭐️ [수정] 팝업 창 통신 함수 (요약 갱신용)
     window.requestSpecificSummaryFromPopup = (sessionId) => {
-        // 이 함수는 팝업이 열려있을 때 팝업 내부의 '이름 변경' 후 요약 갱신을 위해 사용되었으나,
-        // 이름 변경 기능이 제거되어 사실상 '요약 갱신' 용도로만 남겨짐.
         socket.emit("request_specific_summary", { session_id: sessionId });
         if (summaryWindow && !summaryWindow.closed) {
             const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
@@ -642,7 +670,6 @@
                 summaryTextElement.style.borderColor = popupBorder;
                 summaryTextElement.style.background = popupSummaryBg;
             }
-            // ⭐️ [제거] renameBtnElement 관련 코드 제거됨
         }
     }
 
@@ -668,7 +695,7 @@
             const popupSummaryBg = isLight ? '#f9f9f9' : '#2a2a2a';
 
             const popupHTML = `
-                <!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>회의 요약</title>
+                <!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>번역 요약</title>
                 <style>
                     body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: ${popupBg}; color: ${popupText}; line-height: 1.6; transition: background 0.3s, color 0.3s; }
                     h1 { text-align: center; color: ${popupHighlight}; margin-bottom: 5px; font-size: 1.5em; }
@@ -682,7 +709,7 @@
                     #summary-text { white-space: pre-wrap; border: 1px solid ${popupBorder}; padding: 15px; border-radius: 8px; background: ${popupSummaryBg}; min-height: 300px; }
                 </style>
                 </head><body>
-                    <h1>회의 요약</h1>
+                    <h1>번역 요약</h1>
                     <div id="session-info">세션: ${sessionId}</div>
 
                     <div id="summary-text">[요약 생성 중...]</div>
@@ -697,6 +724,7 @@
 
     // ⭐️ 요약 버튼 클릭 리스너 (동일)
     toggleBtn.addEventListener("click", () => {
+        utilityDropdownMenu.style.display = 'none'; // ⭐️ 메뉴 닫기
         const selectedSessionId = sessionSelectMain.value;
         if (!selectedSessionId) {
             alert("먼저 '요약'할 세션을 선택해주세요.");
@@ -736,7 +764,7 @@
             const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
             if (summaryTextDiv) summaryTextDiv.textContent = data.summary;
 
-            // ⭐️ [수정] 팝업의 세션 ID 표시 갱신 (혹시 모를 서버 측 변경에 대비)
+            // ⭐️ [수정] 팝업의 세션 ID 표시 갱신
             const sessionInfoDiv = summaryWindow.document.getElementById('session-info');
             if(sessionInfoDiv) sessionInfoDiv.textContent = `세션: ${data.current_session_id}`;
         }
@@ -882,12 +910,12 @@
 
             const originalDiv = document.createElement("div");
             originalDiv.classList.add("original");
-            originalDiv.textContent = data.original_text || "";
+            originalDiv.textContent = data.original_text || data.original; // ⭐️ 호환성
             originalDiv.style.fontSize = `${currentFontSize}px`;
 
             const translatedDiv = document.createElement("div");
             translatedDiv.classList.add("translated");
-            translatedDiv.textContent = data.translated_text || "";
+            translatedDiv.textContent = data.translated_text || data.translated; // ⭐️ 호환성
             translatedDiv.style.fontSize = `${currentFontSize}px`;
 
             // 타임스탬프는 위/아래 두 로그 사이에 위치하도록

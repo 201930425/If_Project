@@ -69,8 +69,7 @@ def fetch_data_from_db(session_id=None):
         if not text_list:
             return ""
 
-        # ⭐️ [수정] "\n" (줄바꿈)으로 문장을 연결합니다.
-        # KoBART 모델이 문맥을 더 잘 파악할 수 있습니다.
+        # ⭐️ [수정] "\n" (줄바꿈)으로 문장을 연결합니다. (Map-Reduce 요약용)
         return "\n".join(text_list)
     except Exception as e:
         print(f"⚠️ DB 읽기 실패: {e}")
@@ -106,7 +105,6 @@ def get_all_session_ids():
     try:
         conn = sqlite3.connect(DB_NAME, check_same_thread=False)
         cursor = conn.cursor()
-        # 1. 고유한 ID를 2. 타임스탬프 기준으로 3. 내림차순 정렬
         query = """
         SELECT DISTINCT session_id 
         FROM transcripts 
@@ -114,7 +112,6 @@ def get_all_session_ids():
         """
         cursor.execute(query)
         rows = cursor.fetchall()
-        # [('20251105_115000',), ('20251105_100000',)] -> ['20251105_115000', '20251105_100000']
         return [row[0] for row in rows]
     except Exception as e:
         print(f"⚠️ 모든 세션 ID 조회 실패: {e}")
@@ -131,18 +128,15 @@ def rename_session(old_id, new_id):
         conn = sqlite3.connect(DB_NAME, check_same_thread=False)
         cursor = conn.cursor()
 
-        # 1. (선택적) 혹시 모를 중복 방지: new_id가 이미 있는지 확인
         cursor.execute("SELECT 1 FROM transcripts WHERE session_id = ? LIMIT 1", (new_id,))
         if cursor.fetchone():
             print(f"⚠️ 이름 변경 실패: '{new_id}'가 이미 존재합니다.")
             return False
 
-        # 2. 이름 변경 실행
         query = "UPDATE transcripts SET session_id = ? WHERE session_id = ?"
         cursor.execute(query, (new_id, old_id))
         conn.commit()
 
-        # 3. 변경 사항 확인
         if cursor.rowcount > 0:
             print(f"✅ DB 세션 이름 변경 완료: '{old_id}' -> '{new_id}' ({cursor.rowcount}개 레코드)")
             return True
@@ -152,6 +146,32 @@ def rename_session(old_id, new_id):
 
     except Exception as e:
         print(f"⚠️ 세션 이름 변경 중 DB 오류: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+# ⭐️ [신규] 세션 삭제 함수
+def delete_session(session_id):
+    """DB에서 해당 session_id의 모든 기록을 삭제합니다."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+        cursor = conn.cursor()
+
+        query = "DELETE FROM transcripts WHERE session_id = ?"
+        cursor.execute(query, (session_id,))
+        conn.commit()
+
+        if cursor.rowcount > 0:
+            print(f"✅ DB 세션 삭제 완료: '{session_id}' ({cursor.rowcount}개 레코드)")
+            return True
+        else:
+            print(f"⚠️ DB 세션 삭제 실패: '{session_id}'를 찾을 수 없습니다.")
+            return False
+
+    except Exception as e:
+        print(f"⚠️ 세션 삭제 중 DB 오류: {e}")
         return False
     finally:
         if conn:
