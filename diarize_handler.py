@@ -5,7 +5,7 @@ from deep_translator import GoogleTranslator
 from pyannote.audio import Pipeline
 import soundfile as sf
 import numpy as np
-import pandas as pd  # ⭐️ 'pd' not defined 오류 수정을 위한 임포트
+import pandas as pd
 
 # ⭐️ config에서 설정값 임포트
 from config import (
@@ -206,8 +206,9 @@ def run_diarization(session_id):
         # --- 7. 결과 포맷팅 및 번역 ---
         print("✅ 분석 완료. 최종 텍스트 포맷팅 및 번역 중...")
 
-        # ⭐️ [수정] 요청대로 "문장별"로 원문/번역을 나누도록 로직 변경
-        # (이전의 'current_speaker'와 합치는 로직 제거)
+        # ⭐️ [신규] 현재 화자를 추적하기 위한 변수
+        current_speaker = None
+
         for segment in final_result["segments"]:
             speaker = segment.get("speaker", "UNKNOWN")
             text = segment.get("text", "").strip()
@@ -215,11 +216,19 @@ def run_diarization(session_id):
             if not text:
                 continue
 
-            # ⭐️ 각 문장별로 바로 번역 실행
+            # 각 문장별로 바로 번역 실행
             translated = translate_text(text)
 
-            # ⭐️ 원문(화자포함), 번역, 빈 줄 순서로 추가
-            final_transcript.append(f"**{speaker}**: {text}")
+            # ⭐️ [수정] 화자가 바뀌었는지 확인
+            if speaker != current_speaker:
+                # ⭐️ 화자가 바뀌었으면, 태그와 함께 원문 추가
+                final_transcript.append(f"**{speaker}**: {text}")
+                current_speaker = speaker  # ⭐️ 현재 화자 업데이트
+            else:
+                # ⭐️ 화자가 동일하면, 특수 태그와 함께 원문 추가
+                final_transcript.append(f"**_SAME_SPEAKER_**: {text}")
+
+                # ⭐️ 번역문과 빈 줄 추가 (동일)
             final_transcript.append(f"*({translated})*")
             final_transcript.append("")  # 줄바꿈용 빈 줄
 

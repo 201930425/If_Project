@@ -770,7 +770,7 @@
         }
     });
 
-    // ⭐️ 3. 화자 분리 결과 수신 (메인 로그에 출력) (동일)
+    // ⭐️ 3. 화자 분리 결과 수신 (메인 로그에 출력) - [⭐️⭐️⭐️ 수정됨 ⭐️⭐️⭐️]
     socket.on("diarization_result", data => {
         console.log(`✅ 화자 분리 결과 수신: ${data.session_id}`);
 
@@ -784,12 +784,13 @@
             addSystemMessage(`--- 화자 분리 결과 ---`);
         }
 
-        // 3. 결과를 한 줄씩 분리하여 로그에 HTML로 직접 추가 (동일)
+        // 3. 결과를 한 줄씩 분리하여 로그에 HTML로 직접 추가
         const lines = data.result_text.split('\n');
 
         lines.forEach(line => {
+            // ⭐️ [수정] 'SAME_SPEAKER' 태그를 인식하도록 로직 변경
             if (line.startsWith('**SPEAKER_')) {
-                // 원문 라인
+                // ⭐️ 원문 라인 (새 화자)
                 const parts = line.split('**:');
                 const speaker = parts[0].replace(/\*\*/g, '');
                 const originalText = parts[1] ? parts[1].trim() : "(내용 없음)";
@@ -799,7 +800,7 @@
 
                 const speakerDiv = document.createElement("div");
                 speakerDiv.classList.add("timestamp");
-                speakerDiv.textContent = speaker;
+                speakerDiv.textContent = speaker; // ⭐️ 화자 태그 표시
 
                 const originalDiv = document.createElement("div");
                 originalDiv.classList.add("original");
@@ -811,8 +812,27 @@
                 logDiv.appendChild(entry);
                 setTimeout(() => entry.classList.add("show"), 10);
 
+            } else if (line.startsWith('**_SAME_SPEAKER_**')) {
+                // ⭐️ 원문 라인 (같은 화자 - 태그 생략)
+                const parts = line.split('**:');
+                const originalText = parts[1] ? parts[1].trim() : "(내용 없음)";
+
+                const entry = document.createElement("div");
+                entry.classList.add("log-entry");
+
+                // ⭐️ speakerDiv를 추가하지 않음
+
+                const originalDiv = document.createElement("div");
+                originalDiv.classList.add("original");
+                originalDiv.textContent = originalText;
+                originalDiv.style.fontSize = `${currentFontSize}px`;
+
+                entry.appendChild(originalDiv);
+                logDiv.appendChild(entry);
+                setTimeout(() => entry.classList.add("show"), 10);
+
             } else if (line.startsWith('*(') && line.endsWith(')*')) {
-                // 번역 라인
+                // ⭐️ 번역 라인
                 const translatedText = line.substring(2, line.length-2);
 
                 const translatedDiv = document.createElement("div");
@@ -825,6 +845,7 @@
                     lastEntry.appendChild(translatedDiv);
                 }
             }
+            // 빈 줄은 무시
         });
         logDiv.scrollTop = 0; // 맨 위로 스크롤
     });
