@@ -57,7 +57,7 @@ CHUNK_SIZE = int(RATE * CHUNK_DURATION_SEC)
 
 # ⚠️ [필수] Hugging Face 토큰 (https://huggingface.co/settings/tokens)
 # (보안을 위해 '' 안에 넣는 것보다 환경 변수 사용을 권장합니다. 아래 팁 참조)
-HF_TOKEN = "Init Hugging Face"
+HF_TOKEN = "hf_your_token_here"
 
 # VRAM 2GB 한계로 CPU 사용
 DIARIZE_DEVICE = "cpu"
