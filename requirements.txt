@@ -1,0 +1,15 @@
+flask
+flask-socketio
+sounddevice
+numpy
+noisereduce
+torch
+torchaudio
+faster-whisper
+deep-translator
+transformers
+sentencepiece
+whisperx
+pyannote.audio
+pandas
+soundfile
