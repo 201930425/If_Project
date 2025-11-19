@@ -1,12 +1,12 @@
 # 🎙️ AI Real-Time Translation & Meeting Assistant
 
-> **실시간 다국어 회의 통역 및 AI 기반 화자 분리/요약 솔루션** > OpenAI의 **Whisper**로 듣고, **Google Translate**로 번역하며, **Pyannote**로 화자를 구별하고, **KoBART**로 핵심을 요약합니다.
+> **실시간 다국어 영상 통역 및 AI 기반 화자 분리/요약 솔루션** > OpenAI의 **Whisper**로 듣고, **Google Translate**로 번역하며, **Pyannote**로 화자를 구별하고, **KoBART**로 핵심을 요약합니다.
 
 ---
 
 ## 📌 프로젝트 소개 (Overview)
 
-이 프로젝트는 글로벌 미팅이나 다국어 대화 환경에서 실시간 소통을 돕고, 회의가 끝난 후에는 **누가 무슨 말을 했는지(Speaker Diarization)** 분석하여 **요약본(Summary)**을 제공하는 올인원 웹 애플리케이션입니다.
+이 프로젝트는 글로벌 영이나 다국어 대화 환경에서 실시간 소통을 돕고, 회의가 끝난 후에는 **누가 무슨 말을 했는지(Speaker Diarization)** 분석하여 **요약본(Summary)**을 제공하는 올인원 웹 애플리케이션입니다.
 
 * **저사양 최적화:** VRAM 2GB~4GB GPU 및 CPU 환경에서도 구동 가능하도록 설계되었습니다.
 
