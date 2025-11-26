@@ -77,14 +77,14 @@ def handle_session_list_request(data):  # ⭐️ (data) 인자 유지
 def handle_language_change(data):
     """클라이언트에서 언어 변경 요청을 받음"""
     try:
-        lang = data.get("language", "en")
-        target = data.get("target", "ko")
+        lang = data.get("language")
+        target = data.get("target")
         config.LANGUAGE = lang
         config.TARGET_LANG = target
         print(f"🌐 언어 변경됨 → 입력: {config.LANGUAGE}, 출력: {config.TARGET_LANG}")
         socketio.emit("language_changed", {
-            "language": config.LANGUAGE,
-            "target": config.TARGET_LANG
+            "language": lang,
+            "target": target
         })
     except Exception as e:
         print(f"⚠️ 언어 변경 중 오류: {e}")

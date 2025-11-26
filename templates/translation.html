@@ -279,7 +279,7 @@
 
         <div id="right-buttons">
             <div id="session-search-container">
-                <input type="text" id="session-search-input" placeholder="세션 선택 또는 검색/시작 이름 입력" value="[세션 로드 중...]" title="세션 이름 검색 또는 새 세션 이름 입력">
+                <input type="text" id="session-search-input" placeholder="기존 세션 검색..." value="[세션 로드 중...]" title="기존 세션 검색 및 불러오기">
                 <div id="session-search-results">
                     </div>
             </div>
@@ -293,7 +293,7 @@
 
                 <div class="setting-item" id="lang-select-container">
                     <label>번역 언어 선택</label>
-                    <button class="all-btn" id="lang-display-btn" title="현재 번역 방향">KR -> KR</button>
+                    <button class="all-btn" id="lang-display-btn" title="현재 번역 방향">🇰🇷 한국어 -> 한국어</button>
                     <div id="lang-dropdown-menu" class="sub-dropdown-menu">
                         </div>
                 </div>
@@ -369,12 +369,12 @@
     let currentSourceLang = localStorage.getItem('source_lang') || 'ko'; // ko, en, ja
     let currentTargetLang = localStorage.getItem('target_lang') || 'ko'; // ko, en
 
-    // ⭐️ [최종 수정] 언어 옵션 데이터 (요청하신 KR -> KR, EN -> KR, JP -> KR, KR -> EN 형식으로만 표시)
+    // ⭐️ [수정] 언어 옵션 데이터
     const langOptions = [
-        { source: 'ko', target: 'ko', label: 'KR -> KR' },
-        { source: 'en', target: 'ko', label: 'EN -> KR' },
-        { source: 'ja', target: 'ko', label: 'JP -> KR' },
-        { source: 'ko', target: 'en', label: 'KR -> EN' }
+        { source: 'ko', target: 'ko', label: '🇰🇷 한국어 -> 한국어 (Self)' },
+        { source: 'en', target: 'ko', label: '🇺🇸 영어 -> 한국어' },
+        { source: 'ja', target: 'ko', label: '🇯🇵 일본어 -> 한국어' },
+        { source: 'ko', target: 'en', label: '🇰🇷 한국어 -> 영어' }
     ];
 
     // --- 초기화 실행 ---
@@ -395,7 +395,7 @@
     }
     function updateLangDisplay(sourceLang, targetLang) {
         const option = langOptions.find(opt => opt.source === sourceLang && opt.target === targetLang);
-        langDisplayBtn.textContent = option ? option.label : `${sourceLang.toUpperCase()} -> ${targetLang.toUpperCase()}`;
+        langDisplayBtn.textContent = option ? option.label : `Error: ${sourceLang} -> ${targetLang}`;
 
         // 드롭다운 메뉴의 활성 상태 업데이트
         langDropdownMenu.querySelectorAll('.lang-option').forEach(el => {
@@ -492,24 +492,43 @@
         }
     });
 
-    // ⭐️ 세션 제어 버튼 클릭 이벤트 (선택된 ID 또는 입력 필드 값 사용)
+    // ⭐️ [수정] 세션 제어 버튼 클릭 이벤트 (Prompt 팝업 사용)
     sessionControlBtn.addEventListener('click', () => {
         const currentText = sessionControlBtn.textContent;
-        const currentSessionId = sessionSearchInput.value.trim();
+        // 기존 검색창 값은 무시합니다.
 
         if (currentText.includes('Start')) {
-            if (!currentSessionId || currentSessionId === "[세션 없음]" || currentSessionId === "[세션 로드 중...]") {
-                alert("시작할 세션 이름을 입력하거나 기존 세션을 선택해주세요.");
+            // ⭐️ [신규] 팝업창으로 세션 이름 입력받기
+            const now = new Date();
+            const defaultName = `Session_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+
+            let newSessionId = prompt("새로 시작할 세션의 이름을 입력하세요:", defaultName);
+
+            if (newSessionId === null) return; // 취소 누름
+
+            newSessionId = newSessionId.trim();
+
+            if (!newSessionId) {
+                alert("세션 이름을 입력해야 합니다.");
                 return;
             }
-            console.log(`🚀 'start_translation_session' 요청 전송 (ID: ${currentSessionId})`);
-            addSystemMessage(`'${currentSessionId}' 세션 시작 요청 중... (서버 응답 대기)`);
+
+            // (선택 사항) 이미 존재하는 세션인지 클라이언트 측에서 미리 확인
+            const isExisting = allSessions.some(s => s.session_id === newSessionId);
+            if (isExisting) {
+                if(!confirm(`'${newSessionId}'은(는) 이미 존재하는 세션입니다.\n해당 세션에 이어서 녹음하시겠습니까?`)) {
+                    return;
+                }
+            }
+
+            console.log(`🚀 'start_translation_session' 요청 전송 (ID: ${newSessionId})`);
+            addSystemMessage(`'${newSessionId}' 세션 시작 요청 중... (서버 응답 대기)`);
             socket.emit("start_translation_session", {
-                session_id: currentSessionId
+                session_id: newSessionId
             });
 
         } else if (currentText.includes('End')) {
-            if (confirm(`현재 번역 세션 [${currentSessionId}]을(를) 중지하시겠습니까?`)) {
+            if (confirm(`현재 번역 세션을 중지하시겠습니까?`)) {
                 console.log("🚀 'stop_translation_session' 요청 전송");
                 addSystemMessage("세션 중지 요청 중...");
                 socket.emit("stop_translation_session", {});
@@ -559,13 +578,14 @@
     diarizeBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         utilityDropdownMenu.style.display = 'none';
+        // 화자 분석은 현재 검색창에 선택된 세션을 기준으로 합니다.
         const selectedId = sessionSearchInput.value.trim();
 
         if (!selectedId || sessionControlBtn.textContent.includes('End')) {
              if (sessionControlBtn.textContent.includes('End')) {
                 alert("실시간 번역을 먼저 중지해야 분석을 실행할 수 있습니다.");
              } else {
-                 alert("먼저 분석할 세션을 선택/입력하거나 로드해주세요.");
+                 alert("먼저 분석할 세션을 검색하여 로드해주세요.");
              }
             return;
         }
@@ -588,7 +608,7 @@
             if (sessionControlBtn.textContent.includes('End')) {
                  alert("실시간 번역이 실행 중일 때는 세션을 삭제할 수 없습니다.");
             } else {
-                 alert("먼저 삭제할 세션을 선택/입력해주세요.");
+                 alert("먼저 삭제할 세션을 검색하여 선택해주세요.");
             }
             return;
         }
@@ -606,7 +626,7 @@
         const selectedId = sessionSearchInput.value.trim();
 
         if (!selectedId) {
-            alert("먼저 '요약'할 세션을 선택/입력해주세요.");
+            alert("먼저 '요약'할 세션을 검색하여 선택해주세요.");
             return;
         }
 
@@ -641,10 +661,10 @@
     });
 
     // ----------------------------------------------------
-    // ✨ 검색 가능한 세션 드롭다운 로직
+    // ✨ 검색 가능한 세션 드롭다운 로직 (생성 기능 제거)
     // ----------------------------------------------------
 
-    // 세션 검색 결과 렌더링 함수 (타임라인 포함)
+    // ⭐️ [수정] 세션 검색 결과 렌더링 함수
     function renderSessionResults(filterText = '') {
         sessionSearchResults.innerHTML = '';
         const lowerFilter = filterText.toLowerCase();
@@ -656,12 +676,11 @@
         if (filteredSessions.length === 0) {
             const noResult = document.createElement('div');
             noResult.classList.add('session-item');
-            noResult.textContent = filterText ? `[새 세션 생성: "${filterText}"]` : "세션 목록 없음";
-            noResult.addEventListener('click', (e) => {
-                e.stopPropagation();
-                selectSession(filterText);
-                sessionSearchResults.style.display = 'none';
-            });
+
+            // ⭐️ [변경] 검색 결과가 없다는 메시지만 표시 (클릭 불가)
+            noResult.textContent = filterText ? "검색 결과가 없습니다." : "세션 목록 없음";
+            noResult.style.cursor = "default";
+
             sessionSearchResults.appendChild(noResult);
             return;
         }
@@ -693,19 +712,15 @@
         highlightedIndex = -1;
     }
 
-    // 세션 선택 처리 함수
+    // ⭐️ [수정] 세션 선택 처리 함수
     function selectSession(sessionId) {
         sessionSearchInput.value = sessionId;
         selectedSessionId = sessionId;
         sessionSearchResults.style.display = 'none';
 
-        const isExisting = allSessions.some(s => s.session_id === sessionId);
-        if (isExisting) {
-            addSystemMessage(`세션 '${sessionId}'을(를) 선택했습니다. 'Start Translation'을 누르면 이 세션의 로그가 로드됩니다.`);
-            socket.emit("request_load_session", { session_id: sessionId });
-        } else {
-             addSystemMessage(`새 세션 이름 '${sessionId}'을(를) 입력했습니다. 'Start Translation'을 누르면 새 세션이 시작됩니다.`);
-        }
+        // 단순히 선택 및 로드 요청만 수행
+        addSystemMessage(`세션 '${sessionId}'을(를) 불러옵니다.`);
+        socket.emit("request_load_session", { session_id: sessionId });
     }
 
     // 입력 필드 입력 이벤트 (검색 기능)
@@ -732,7 +747,8 @@
     // ⭐️ 키보드 탐색 기능
     sessionSearchInput.addEventListener('keydown', (e) => {
         const results = Array.from(sessionSearchResults.querySelectorAll('.session-item'));
-        if (results.length === 0) return;
+        // 결과가 없거나 클릭 불가능한 상태면 리턴
+        if (results.length === 0 || results[0].style.cursor === "default") return;
 
         if (e.key === 'ArrowDown') {
             e.preventDefault();
@@ -747,9 +763,6 @@
             if (highlightedIndex !== -1) {
                 // 하이라이트 된 항목 선택
                 results[highlightedIndex].click();
-            } else {
-                // 하이라이트 없이 엔터 시, 현재 입력된 값으로 세션 시작/중지 시도
-                sessionControlBtn.click();
             }
         }
     });

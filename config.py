@@ -4,7 +4,7 @@
 
 # --- Whisper 모델 설정 ---
 # 모델 타입: "tiny", "base", "small", "medium", "large-v3"
-MODEL_TYPE = "medium"
+MODEL_TYPE = "tiny"
 
 # Whisper beam search 크기 (높을수록 정확하지만 느림)
 BEAM_SIZE = 8

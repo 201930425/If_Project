@@ -81,8 +81,11 @@ audio_q = queue.Queue()
 def translate_text_local(text, target_lang=TARGET_LANG):
     if not text or not text.strip():
         return ""
-    if config.LANGUAGE == config.TARGET_LANG:
+
+    # ⭐ 한국어 탭 → 번역 필요 없음
+    if target_lang == config.LANGUAGE:
         return ""
+
     try:
         return GoogleTranslator(source='auto', target=target_lang).translate(text)
     except Exception as e:
@@ -230,7 +233,7 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                     kst = timezone(timedelta(hours=9))
                                     now_time = datetime.now(kst).strftime("%H:%M:%S")
 
-                                    translated = translate_text_local(sentence_buffer)
+                                    translated = translate_text_local(sentence_buffer, target_lang=config.TARGET_LANG)
                                     print(f"✅ 완성 문장: {sentence_buffer}")
                                     print(f"🌐 번역 결과: {translated}\n")
 
@@ -295,7 +298,7 @@ def main_audio_streaming(session_id, socketio, stop_event=None):
                                     kst = timezone(timedelta(hours=9))
                                     now_time = datetime.now(kst).strftime("%H:%M:%S")
 
-                                    translated = translate_text_local(sentence_buffer)
+                                    translated = translate_text_local(sentence_buffer, target_lang=config.TARGET_LANG)
                                     print(f"✅ 완성 문장: {sentence_buffer}")
                                     print(f"🌐 번역 결과: {translated}\n")
 
