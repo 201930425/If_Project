@@ -53,7 +53,7 @@ def fetch_data_from_db(session_id=None):
     try:
         conn = sqlite3.connect(DB_NAME, check_same_thread=False)
         cursor = conn.cursor()
-        query = "SELECT translated_text FROM transcripts"
+        query = "SELECT COALESCE(NULLIF(translated_text, ''), original_text) FROM transcripts"
         params = []
 
         if session_id:

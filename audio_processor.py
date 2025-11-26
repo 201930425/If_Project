@@ -81,6 +81,8 @@ audio_q = queue.Queue()
 def translate_text_local(text, target_lang=TARGET_LANG):
     if not text or not text.strip():
         return ""
+    if config.LANGUAGE == config.TARGET_LANG:
+        return ""
     try:
         return GoogleTranslator(source='auto', target=target_lang).translate(text)
     except Exception as e:
