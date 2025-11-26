@@ -51,9 +51,9 @@ def load_kobart_model():
             kobart_loading = False
 
 
-# ⭐️ [신규] 헬퍼 함수: 실제 요약 실행기
-def _summarize_internal(text_chunk):
-    """주어진 텍스트 조각(chunk)을 요약합니다."""
+# ⭐️ 헬퍼 함수: 실제 요약 실행기 (파라미터화)
+def _summarize_internal(text_chunk, max_gen_len=150, min_gen_len=30):
+    """주어진 텍스트 조각(chunk)을 지정된 길이로 요약합니다."""
     global kobart_tokenizer, kobart_model, DEVICE
 
     try:
@@ -75,8 +75,8 @@ def _summarize_internal(text_chunk):
             inputs['input_ids'],
             attention_mask=inputs['attention_mask'],
             num_beams=4,
-            max_length=150,  # 중간 요약 최대 길이
-            min_length=30,  # 중간 요약 최소 길이
+            max_length=max_gen_len,  # ⭐️ 가변 길이 적용
+            min_length=min_gen_len,  # ⭐️ 가변 길이 적용
             early_stopping=True,
             no_repeat_ngram_size=2
         )
@@ -92,30 +92,40 @@ def _summarize_internal(text_chunk):
         return "[요약 조각 생성 실패]"
 
 
-# ⭐️ [수정] Map-Reduce 로직이 적용된 메인 요약 함수
-def summarize_text(text, max_len=256):  # max_len은 최종 요약본 기준
+# ⭐️ [수정] Map-Reduce 로직 + 단일 청크 최적화 + 길이 옵션
+def summarize_text(text, length_mode="medium"):
     """
     KoBART 모델을 사용하여 텍스트를 요약합니다.
-    1024 토큰이 넘는 긴 텍스트는 Map-Reduce 방식으로 자동 처리합니다.
+    length_mode: 'short', 'medium', 'long'
     """
     global kobart_tokenizer, kobart_model
     if not text.strip():
         return "[요약할 텍스트가 없습니다]"
     if kobart_model is None or kobart_tokenizer is None:
-        load_kobart_model()  # ⭐️ 모델이 없으면 로드 시도
+        load_kobart_model()
         if kobart_model is None:
             return "[KoBART 모델이 로드되지 않았습니다]"
 
-    print("🔄 요약 작업 시작...")
+    print(f"🔄 요약 작업 시작... (모드: {length_mode})")
 
-    # ⭐️ 1. 전체 텍스트를 문장(줄바꿈) 기준으로 분리
-    # (db_handler.py가 \n으로 합쳐주기로 함)
+    # ⭐️ 1. 목표 요약 길이 설정
+    if length_mode == "short":
+        final_max = 100
+        final_min = 20
+    elif length_mode == "long":
+        # A4 용지 1장 목표 (약 1000토큰)
+        final_max = 1000
+        final_min = 600
+    else:  # medium
+        final_max = 250
+        final_min = 50
+
     sentences = [s.strip() for s in text.split('\n') if s.strip()]
     if not sentences:
         return "[요약할 텍스트가 없습니다]"
 
-    # ⭐️ 2. Map 단계: 문장들을 1024 토큰 청크로 묶기
-    max_chunk_tokens = 1000  # 1024의 안전 마진
+    # ⭐️ 2. Map 단계: 청크화
+    max_chunk_tokens = 1000
     current_chunk_sentences = []
     current_chunk_tokens = 0
     intermediate_summaries = []
@@ -123,50 +133,64 @@ def summarize_text(text, max_len=256):  # max_len은 최종 요약본 기준
     print(f" (1/3) 총 {len(sentences)}개 문장 청크화 시작...")
 
     for sentence in sentences:
-        # 현재 문장의 토큰 수 계산
         sentence_tokens = len(kobart_tokenizer.tokenize(sentence))
 
         if current_chunk_tokens + sentence_tokens > max_chunk_tokens:
-            # ⭐️ 토큰 한도 초과: 현재까지의 청크를 요약
+            # 청크가 꽉 찼으면 '중간 요약' 실행 (Map)
+            # 중간 요약은 정보 손실을 막기 위해 적당한 길이(150) 유지
             if current_chunk_sentences:
                 chunk_text = " ".join(current_chunk_sentences)
-                print(f"  ... 청크 요약 중 (토큰 약 {current_chunk_tokens}개)")
-                chunk_summary = _summarize_internal(chunk_text)
+                chunk_summary = _summarize_internal(chunk_text, max_gen_len=150, min_gen_len=30)
                 intermediate_summaries.append(chunk_summary)
 
-            # 새 청크 시작
             current_chunk_sentences = [sentence]
             current_chunk_tokens = sentence_tokens
         else:
-            # ⭐️ 토큰 한도 미만: 현재 청크에 문장 추가
             current_chunk_sentences.append(sentence)
             current_chunk_tokens += sentence_tokens
 
-    # ⭐️ 마지막 남은 청크 요약
+    # ⭐️ 3. 마지막 청크 처리 (중요 수정)
     if current_chunk_sentences:
-        print(f"  ... 마지막 청크 요약 중 (토큰 약 {current_chunk_tokens}개)")
         chunk_text = " ".join(current_chunk_sentences)
-        chunk_summary = _summarize_internal(chunk_text)
-        intermediate_summaries.append(chunk_summary)
+
+        # ⭐️ [핵심 수정] 만약 이것이 '첫 번째이자 마지막' 청크라면 (즉, 전체 텍스트가 한 번에 들어간다면)
+        # 중간 요약(150토큰)을 거치지 않고 바로 '최종 목표 길이(final_max)'로 요약합니다.
+        if not intermediate_summaries:
+            print(" (2/3) 단일 청크 요약 실행 (Reduce 생략)...")
+
+            # ⭐️ 안전 장치: 원문이 너무 짧은데 min_length가 크면 환각(반복) 발생하므로 조절
+            input_len = len(kobart_tokenizer.tokenize(chunk_text))
+            safe_min = min(final_min, input_len)  # 원문보다 길게 요약하라고 강제하지 않음
+
+            # 여기서 바로 최종 결과 생성
+            final_summary_text = _summarize_internal(chunk_text, max_gen_len=final_max, min_gen_len=safe_min)
+
+            # 포맷팅 후 바로 리턴
+            final_summary_formatted = final_summary_text.replace(". ", ".\n")
+            print("✅ 요약 작업 완료.")
+            return final_summary_formatted
+
+        else:
+            # 이전 청크들이 있다면 이것도 그냥 중간 요약의 하나일 뿐임
+            chunk_summary = _summarize_internal(chunk_text, max_gen_len=150, min_gen_len=30)
+            intermediate_summaries.append(chunk_summary)
 
     if not intermediate_summaries:
         return "[요약 생성 실패]"
 
     print(f" (2/3) {len(intermediate_summaries)}개 중간 요약 생성 완료.")
 
-    # ⭐️ 3. Reduce 단계: 중간 요약본들을 합쳐서 최종 요약
+    # ⭐️ 4. Reduce 단계: 중간 요약본들을 합쳐서 최종 요약
     combined_summary_text = "\n".join(intermediate_summaries)
 
-    # ⭐️ 만약 중간 요약이 1개 뿐이면 (텍스트가 1024 토큰 미만이었으면)
-    if len(intermediate_summaries) == 1:
-        final_summary_text = intermediate_summaries[0]
-    else:
-        # ⭐️ 중간 요약본들의 합이 1024 토큰을 넘으면, 최종 요약도 잘릴 수 있지만
-        # (이 경우 재귀적으로 처리해야 하나, CPU 부담으로 1회로 제한)
-        print(" (3/3) 중간 요약본들을 합쳐 최종 요약 중...")
-        final_summary_text = _summarize_internal(combined_summary_text)
+    print(" (3/3) 중간 요약본들을 합쳐 최종 요약 중...")
+    # Reduce 단계에서도 안전 장치 적용
+    input_len = len(kobart_tokenizer.tokenize(combined_summary_text))
+    safe_min = min(final_min, input_len)
 
-    # ⭐️ 4. 최종 포맷팅 (줄바꿈 추가)
+    final_summary_text = _summarize_internal(combined_summary_text, max_gen_len=final_max, min_gen_len=safe_min)
+
+    # ⭐️ 5. 최종 포맷팅
     final_summary_formatted = final_summary_text.replace(". ", ".\n")
     print("✅ 요약 작업 완료.")
 
@@ -174,22 +198,5 @@ def summarize_text(text, max_len=256):  # max_len은 최종 요약본 기준
 
 
 def generate_summary_thread(latest_data):
-    """
-    (깃 오리지널 버전)
-    *현재* 세션의 데이터를 가져와 요약하고 전역 변수를 업데이트합니다.
-    """
-    global latest_summary
-    print("🔄 요약 생성 시작...")
-    latest_summary = "[요약 생성 중...]"  # 상태 업데이트
-
-    session_id = latest_data.get("session_id")  # .get()으로 안전하게 접근
-    if not session_id:
-        latest_summary = "[요약할 세션 ID가 없습니다]"
-        return
-
-    full_text = fetch_data_from_db(session_id)  # *현재* 세션 ID로 조회
-    if full_text:
-        latest_summary = summarize_text(full_text)
-        print(f"✅ 요약 생성 완료 (세션: {session_id})")
-    elif not full_text:
-        latest_summary = "[DB에 요약할 데이터가 없습니다]"
+    """(구버전 호환용)"""
+    pass

@@ -95,26 +95,28 @@ def handle_language_change(data):
         })
 
 
-# --- ⭐️ "특정 세션" 요약 요청 핸들러 ---
+# --- ⭐️ "특정 세션" 요약 요청 핸들러 (길이 옵션 추가) ---
 @socketio.on("request_specific_summary")
 def handle_specific_summary_request(data):
     """(수정) 클라이언트가 '요약' 버튼을 눌렀을 때 호출"""
     session_id = data.get("session_id")
+    length = data.get("length", "medium")  # ⭐️ 기본값 medium
+
     if not session_id:
         return
 
-    print(f"🔄 (특정) 요약 요청 수신... 세션: {session_id}")
+    print(f"🔄 (특정) 요약 요청 수신... 세션: {session_id}, 길이: {length}")
 
     # ⭐️ [신규] 요약은 CPU 시간이 걸리므로 별도 스레드로 분리
     threading.Thread(
         target=run_summary_thread,
-        args=(session_id,),
+        args=(session_id, length),  # ⭐️ length 전달
         daemon=True
     ).start()
 
 
-# ⭐️ [신규] 요약을 위한 스레드 함수
-def run_summary_thread(session_id):
+# ⭐️ [신규] 요약을 위한 스레드 함수 (길이 파라미터 추가)
+def run_summary_thread(session_id, length):
     """
     (백그라운드 스레드)
     summary_handler.py를 실행하고, 완료되면 팝업창으로 결과를 전송합니다.
@@ -126,9 +128,9 @@ def run_summary_thread(session_id):
         if not full_text:
             summary = "[선택된 세션에 요약할 텍스트가 없습니다]"
         else:
-            print(f"✅ (스레드) 세션 '{session_id}' 텍스트 요약 중...")
-            # ⭐️ [수정] Map-Reduce 요약 함수 호출 (오래 걸릴 수 있음)
-            summary = summarize_text(full_text)
+            print(f"✅ (스레드) 세션 '{session_id}' 텍스트 요약 중... (길이: {length})")
+            # ⭐️ [수정] 요약 길이를 전달
+            summary = summarize_text(full_text, length_mode=length)
 
         # ⭐️ 팝업창 전용 이벤트로 전송
         socketio.emit("summary_data_updated", {

@@ -157,8 +157,7 @@
     #utility-dropdown-menu .all-btn { width: 100%; box-shadow: none; border-radius: 8px; padding: 10px 15px; height: auto; }
     #utility-dropdown-menu #diarize-btn { background: #0984e3; }
     #utility-dropdown-menu #diarize-btn:hover { background: #0c70b8; }
-    #utility-dropdown-menu #delete-btn { background: #ff6347; color: #fff; }
-    #utility-dropdown-menu #delete-btn:hover { background: #d9534f; }
+    /* #delete-btn 제거됨 */
     #session-control-btn { background: var(--button-bg); color: var(--text-color); }
     #session-control-btn.session-active { background-color: #ff6347; color: #fff; }
     #session-control-btn.session-active:hover { background-color: #d9534f; transform: scale(1.05); }
@@ -287,10 +286,17 @@
             <button id="utility-menu-toggle" class="all-btn" title="기타 기능">•••</button>
 
             <div id="utility-dropdown-menu">
-                <button id="toggle-summary" class="all-btn">요약</button>
-                <button id="diarize-btn" class="all-btn" title="선택한 세션을 분석합니다.">화자 분석</button>
-                <button id="delete-btn" class="all-btn" title="선택한 세션을 DB와 wav 폴더에서 영구 삭제합니다">세션 삭제</button>
+                <div class="setting-item">
+                    <label>요약 길이 선택</label>
+                    <select id="summary-length-select" class="all-btn" style="width:100%; text-align:center; height:38px;">
+                        <option value="short">짧게 (Short)</option>
+                        <option value="medium" selected>보통 (Medium)</option>
+                        <option value="long">길게 (Long)</option>
+                    </select>
+                </div>
 
+                <button id="toggle-summary" class="all-btn">요약 생성</button>
+                <button id="diarize-btn" class="all-btn" title="선택한 세션을 분석합니다.">화자 분석</button>
                 <div class="setting-item" id="lang-select-container">
                     <label>번역 언어 선택</label>
                     <button class="all-btn" id="lang-display-btn" title="현재 번역 방향">🇰🇷 한국어 -> 한국어</button>
@@ -340,7 +346,7 @@
     const utilityMenuToggle = document.getElementById("utility-menu-toggle");
     const utilityDropdownMenu = document.getElementById("utility-dropdown-menu");
     const diarizeBtn = document.getElementById("diarize-btn");
-    const deleteBtn = document.getElementById("delete-btn");
+    // const deleteBtn 제거됨
     const toggleBtn = document.getElementById("toggle-summary");
 
     // ⭐️ [수정] 언어 선택 관련 변수
@@ -598,32 +604,17 @@
         }
     });
 
-    // ⭐️ 세션 삭제 버튼 클릭 리스너 (stopPropagation 추가)
-    deleteBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        utilityDropdownMenu.style.display = 'none';
-        const selectedId = sessionSearchInput.value.trim();
+    // ❌ 세션 삭제 버튼 이벤트 리스너 제거됨
 
-        if (!selectedId || sessionControlBtn.textContent.includes('End')) {
-            if (sessionControlBtn.textContent.includes('End')) {
-                 alert("실시간 번역이 실행 중일 때는 세션을 삭제할 수 없습니다.");
-            } else {
-                 alert("먼저 삭제할 세션을 검색하여 선택해주세요.");
-            }
-            return;
-        }
-
-        if (confirm(`[${selectedId}] 세션을 영구적으로 삭제하시겠습니까? (되돌릴 수 없음)`)) {
-            console.log(`🚀 'request_delete_session' 요청 전송 (ID: ${selectedId})`);
-            socket.emit("request_delete_session", { session_id: selectedId });
-        }
-    });
-
-    // ⭐️ 요약 버튼 클릭 리스너 (stopPropagation 추가)
+    // ⭐️ [수정] 요약 버튼 클릭 리스너 (길이 전송 추가)
     toggleBtn.addEventListener("click", (event) => {
         event.stopPropagation();
         utilityDropdownMenu.style.display = 'none';
         const selectedId = sessionSearchInput.value.trim();
+
+        // ⭐️ 선택된 요약 길이 가져오기
+        const lengthSelect = document.getElementById("summary-length-select");
+        const selectedLength = lengthSelect.value;
 
         if (!selectedId) {
             alert("먼저 '요약'할 세션을 검색하여 선택해주세요.");
@@ -631,7 +622,11 @@
         }
 
         openSummaryWindow(selectedId);
-        socket.emit("request_specific_summary", { session_id: selectedId });
+        // ⭐️ 길이 파라미터 함께 전송
+        socket.emit("request_specific_summary", {
+            session_id: selectedId,
+            length: selectedLength
+        });
     });
 
 
@@ -664,7 +659,7 @@
     // ✨ 검색 가능한 세션 드롭다운 로직 (생성 기능 제거)
     // ----------------------------------------------------
 
-    // ⭐️ [수정] 세션 검색 결과 렌더링 함수
+    // ⭐️ [수정] 세션 검색 결과 렌더링 함수 (삭제 버튼: X 표시)
     function renderSessionResults(filterText = '') {
         sessionSearchResults.innerHTML = '';
         const lowerFilter = filterText.toLowerCase();
@@ -676,11 +671,8 @@
         if (filteredSessions.length === 0) {
             const noResult = document.createElement('div');
             noResult.classList.add('session-item');
-
-            // ⭐️ [변경] 검색 결과가 없다는 메시지만 표시 (클릭 불가)
             noResult.textContent = filterText ? "검색 결과가 없습니다." : "세션 목록 없음";
             noResult.style.cursor = "default";
-
             sessionSearchResults.appendChild(noResult);
             return;
         }
@@ -691,17 +683,63 @@
             item.setAttribute('data-id', session.session_id);
             item.setAttribute('data-index', index);
 
+            // ⭐️ 스타일: 텍스트와 버튼을 양옆으로 배치 (Flexbox)
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+
             const startTime = session.start_time ? new Date(session.start_time).toLocaleString('ko-KR') : '시간 정보 없음';
             const duration = session.duration ? ` (약 ${session.duration}초)` : '';
 
-            item.innerHTML = `
+            // 1. 텍스트 정보 영역 (좌측)
+            const infoDiv = document.createElement('div');
+            infoDiv.innerHTML = `
                 <div>${session.session_id}</div>
                 <span class="session-timeline">${startTime}${duration}</span>
             `;
 
-            // 클릭 이벤트 리스너
+            // 2. 삭제 버튼 생성 (우측) - X 표시로 변경
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '&times;'; // ⭐️ X 표시 (HTML 엔티티)
+            delBtn.title = '이 세션 영구 삭제';
+            delBtn.style.marginLeft = '10px';
+            delBtn.style.background = 'transparent';
+            delBtn.style.border = 'none';
+            delBtn.style.cursor = 'pointer';
+            delBtn.style.fontSize = '1.5em'; // ⭐️ 크기 키움
+            delBtn.style.fontWeight = 'bold'; // ⭐️ 굵게
+            delBtn.style.lineHeight = '1';
+            delBtn.style.color = '#ff6b6b'; // 빨간색 계열
+            delBtn.style.padding = '0 5px';
+            delBtn.style.borderRadius = '4px';
+            delBtn.style.transition = 'color 0.2s, background 0.2s';
+
+            // 삭제 버튼 호버 효과
+            delBtn.onmouseover = () => {
+                delBtn.style.background = 'rgba(255, 0, 0, 0.1)';
+                delBtn.style.color = '#ff4757';
+            };
+            delBtn.onmouseout = () => {
+                delBtn.style.background = 'transparent';
+                delBtn.style.color = '#ff6b6b';
+            };
+
+            // ⭐️ 삭제 버튼 클릭 이벤트 (목록 클릭 방지 포함)
+            delBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 부모 요소(세션 선택)로 클릭 이벤트가 전파되지 않도록 막음
+
+                if (confirm(`정말로 '${session.session_id}' 세션을 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) {
+                    console.log(`🚀 리스트에서 삭제 요청: ${session.session_id}`);
+                    socket.emit("request_delete_session", { session_id: session.session_id });
+                }
+            });
+
+            // 요소 조립
+            item.appendChild(infoDiv);
+            item.appendChild(delBtn);
+
+            // 기존 아이템 클릭 이벤트 (세션 선택)
             item.addEventListener('click', (e) => {
-                e.stopPropagation();
                 selectSession(session.session_id);
                 sessionSearchResults.style.display = 'none';
             });
