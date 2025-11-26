@@ -21,9 +21,10 @@
         --button-hover-bg: #10ac84;
         --clear-bg: #f39c12;
         --clear-hover-bg: #e67e22;
-        /* 메뉴 드롭다운 배경 및 그림자 */
         --menu-bg: #333;
         --menu-shadow: 0 6px 12px rgba(0,0,0,0.5);
+        --highlight-bg: #444; /* 검색 결과 하이라이트 */
+        --border-color: #555;
     }
 
     /* 라이트 모드 */
@@ -42,6 +43,8 @@
         --clear-hover-bg: #ffae00;
         --menu-bg: #fff;
         --menu-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        --highlight-bg: #e9ecef;
+        --border-color: #ddd;
     }
 
     body {
@@ -63,33 +66,75 @@
         z-index: 10;
         width: 100%;
         justify-content: space-between;
-        position: relative; /* 드롭다운 기준점 */
+        position: relative;
     }
     #left-buttons {
         display: flex;
         gap: 10px;
         align-items: center;
     }
-    /* ⭐️ 오른쪽 컨테이너 수정 */
     #right-buttons {
         display: flex;
         gap: 10px;
-        align-items: center; /* ⭐️ 세로 정렬 (select 추가) */
+        align-items: flex-start;
     }
 
-    /* ⭐️ [신규] 메인 페이지 세션 선택 드롭다운 */
-    #session-select-main {
+    /* ⭐️ [신규] 커스텀 검색 드롭다운 스타일 */
+    #session-search-container {
+        position: relative;
+        width: 280px;
+        z-index: 15;
+    }
+    #session-search-input {
+        width: 100%;
         padding: 8px 12px;
         border-radius: 20px;
-        border: 1px solid var(--button-bg);
+        border: 1px solid var(--border-color);
         background: var(--menu-bg);
         color: var(--text-color);
         font-weight: bold;
-        max-width: 200px; /* 너무 길어지지 않게 */
-        height: 38px; /* 버튼과 높이 맞춤 */
+        height: 38px;
+        box-sizing: border-box;
+    }
+    #session-search-results {
+        display: none;
+        position: absolute;
+        top: 45px;
+        left: 0;
+        right: 0;
+        max-height: 300px;
+        overflow-y: auto;
+        background: var(--menu-bg);
+        border-radius: 10px;
+        box-shadow: var(--menu-shadow);
+        border: 1px solid var(--border-color);
+        padding: 5px 0;
+        z-index: 20;
+    }
+    .session-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        transition: background 0.2s;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        font-size: 0.9em;
+        line-height: 1.4;
+    }
+    .session-item:last-child {
+        border-bottom: none;
+    }
+    .session-item:hover, .session-item.highlighted {
+        background: var(--highlight-bg);
+    }
+    /* ⭐️ 타임라인 정보 스타일 */
+    .session-item .session-timeline {
+        display: block;
+        font-size: 0.75em;
+        color: var(--timestamp-color);
+        margin-top: 3px;
+        opacity: 0.8;
     }
 
-    /* ⭐️ [리팩토링] 모든 버튼 공통 스타일을 .all-btn 클래스로 통합 */
+    /* ⭐️ 버튼 및 메뉴 공통 스타일 */
     .all-btn {
         padding:8px 18px;
         cursor:pointer;
@@ -100,188 +145,42 @@
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         transition: background 0.3s, color 0.3s, transform 0.2s;
         color: var(--text-color);
-        white-space: nowrap; /* 텍스트 줄바꿈 방지 */
-        height: 38px; /* ⭐️ select와 높이 맞춤 */
+        white-space: nowrap;
+        height: 38px;
     }
     .all-btn:hover {
         background: var(--button-hover-bg);
         transform: scale(1.05);
     }
+    #clear-log-btn { background: var(--clear-bg); color: #333; }
+    #clear-log-btn:hover { background: var(--clear-hover-bg); }
+    #utility-dropdown-menu .all-btn { width: 100%; box-shadow: none; border-radius: 8px; padding: 10px 15px; height: auto; }
+    #utility-dropdown-menu #diarize-btn { background: #0984e3; }
+    #utility-dropdown-menu #diarize-btn:hover { background: #0c70b8; }
+    #utility-dropdown-menu #delete-btn { background: #ff6347; color: #fff; }
+    #utility-dropdown-menu #delete-btn:hover { background: #d9534f; }
+    #session-control-btn { background: var(--button-bg); color: var(--text-color); }
+    #session-control-btn.session-active { background-color: #ff6347; color: #fff; }
+    #session-control-btn.session-active:hover { background-color: #d9534f; transform: scale(1.05); }
+    #utility-menu-toggle { padding: 8px 12px; font-size: 1.2em; }
+    #utility-dropdown-menu { display: none; position: absolute; top: 50px; right: 0; padding: 10px; background: var(--menu-bg); border-radius: 10px; box-shadow: var(--menu-shadow); z-index: 20; flex-direction: column; gap: 10px; border: 1px solid rgba(255,255,255,0.1); width: 240px; }
 
-    /* ⭐️ Clear 버튼 스타일 */
-    #clear-log-btn {
-        background: var(--clear-bg);
-        color: #333;
-    }
-    #clear-log-btn:hover {
-        background: var(--clear-hover-bg);
-    }
-
-    /* ⭐️ [수정] 드롭다운 내부 버튼 스타일 (diarize-btn, delete-btn) */
-    #utility-dropdown-menu .all-btn {
-        width: 100%;
-        box-shadow: none;
-        border-radius: 8px;
-        padding: 10px 15px;
-        height: auto; /* ⭐️ 높이 자동 */
-    }
-
-    #utility-dropdown-menu #diarize-btn {
-        background: #0984e3;
-    }
-    #utility-dropdown-menu #diarize-btn:hover {
-        background: #0c70b8;
-    }
-
-    /* ⭐️ [신규] 세션 삭제 버튼 스타일 (붉은색 계열) */
-    #utility-dropdown-menu #delete-btn {
-        background: #ff6347;
-        color: #fff;
-    }
-    #utility-dropdown-menu #delete-btn:hover {
-        background: #d9534f;
-    }
-
-
-    /* ⭐️ [수정] 세션 제어 버튼 스타일 */
-    #session-control-btn {
-        /* '시작'일 때는 기본 버튼 색 (녹색/파랑) */
-        background: var(--button-bg);
-        color: var(--text-color);
-    }
-    #session-control-btn.session-active {
-        /* '중지' (활성) 상태일 때는 위험/중지 색 (빨강) */
-        background-color: #ff6347;
-        color: #fff;
-    }
-    #session-control-btn.session-active:hover {
-        background-color: #d9534f;
-        transform: scale(1.05);
-    }
-
-
-    /* ⭐️ 유틸리티 메뉴 토글 버튼 스타일 (아이콘 형태) */
-    #utility-menu-toggle {
-        padding: 8px 12px;
-        font-size: 1.2em;
-    }
-
-    /* ⭐️ [수정] 유틸리티 드롭다운 메뉴 컨테이너 */
-    #utility-dropdown-menu {
-        display: none; /* JS로 토글 */
-        position: absolute;
-        top: 50px; /* ⭐️ 높이 수정 */
-        right: 0;
-        padding: 10px;
-        background: var(--menu-bg);
-        border-radius: 10px;
-        box-shadow: var(--menu-shadow);
-        z-index: 20;
-        flex-direction: column;
-        gap: 10px;
-        border: 1px solid rgba(255,255,255,0.1);
-        width: 240px;
-    }
-
-    /* ... (setting-item, zoom-controls 등 나머지 스타일은 동일) ... */
-    .setting-item {
-        margin-bottom: 5px;
-        padding: 0;
-    }
-    .setting-item:first-of-type {
-        border-top: none;
-        padding-top: 0;
-        margin-top: 0;
-    }
-    .setting-item:last-child {
-        margin-bottom: 0;
-        padding-bottom: 0;
-    }
-    .setting-item label {
-        display: block;
-        margin-bottom: 5px;
-        font-size: 0.9em;
-        font-weight: normal;
-        padding-left: 5px;
-    }
-    .zoom-controls {
-        display: flex;
-        justify-content: space-between;
-        align-items: stretch;
-        gap: 0;
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid var(--button-bg);
-        height: 40px;
-    }
-    .zoom-controls button {
-        padding: 0 10px;
-        height: 100%;
-        background: var(--button-bg);
-        border: none;
-        border-radius: 0;
-        cursor: pointer;
-        color: var(--text-color);
-        font-weight: bold;
-        box-shadow: none;
-        transition: background 0.3s;
-        flex-grow: 1;
-        flex-shrink: 0;
-        font-size: 1.0em;
-        width: auto;
-    }
-    .zoom-controls button:hover {
-        background: var(--button-hover-bg);
-        transform: none;
-    }
-    #zoom-level, #font-size-level {
-        font-size: 1.0em;
-        font-weight: bold;
-        text-align: center;
-        flex-grow: 2;
-        background: var(--menu-bg);
-        color: var(--text-color);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0 5px;
-        height: 100%;
-        white-space: nowrap;
-        border-left: 1px solid rgba(255, 255, 255, 0.1);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-    }
+    /* 폰트/줌 컨트롤 스타일 유지 */
+    .setting-item { margin-bottom: 5px; padding: 0; }
+    .setting-item label { display: block; margin-bottom: 5px; font-size: 0.9em; font-weight: normal; padding-left: 5px; }
+    .zoom-controls { display: flex; justify-content: space-between; align-items: stretch; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--button-bg); height: 40px; }
+    .zoom-controls button { padding: 0 10px; height: 100%; background: var(--button-bg); border: none; border-radius: 0; cursor: pointer; color: var(--text-color); font-weight: bold; box-shadow: none; transition: background 0.3s; flex-grow: 1; flex-shrink: 0; font-size: 1.0em; width: auto; }
+    .zoom-controls button:hover { background: var(--button-hover-bg); transform: none; }
+    #zoom-level, #font-size-level { font-size: 1.0em; font-weight: bold; text-align: center; flex-grow: 2; background: var(--menu-bg); color: var(--text-color); display: flex; align-items: center; justify-content: center; padding: 0 5px; height: 100%; white-space: nowrap; border-left: 1px solid rgba(255, 255, 255, 0.1); border-right: 1px solid rgba(255, 255, 255, 0.1); }
 
     /* 콘텐츠 영역 */
-    #content-container {
-        flex: 1;
-        display: flex;
-        min-height: 0;
-    }
+    #content-container { flex: 1; display: flex; min-height: 0; }
+    #log { flex: 1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding:12px; border-radius:15px; background: var(--log-bg); transition: background 0.3s; }
 
-    #log {
-        flex: 1;
-        overflow-y:auto;
-        display:flex;
-        flex-direction:column;
-        gap:12px;
-        padding:12px;
-        border-radius:15px;
-        background: var(--log-bg);
-        transition: background 0.3s;
-    }
+    /* 시스템 메시지 스타일 */
+    .system-message { text-align: center; font-style: italic; color: var(--timestamp-color); width: 100%; font-size: 0.9em; margin: 5px 0; font-weight: bold; }
 
-    /* ⭐️ [신규] 시스템 메시지 스타일 */
-    .system-message {
-        text-align: center;
-        font-style: italic;
-        color: var(--timestamp-color);
-        width: 100%;
-        font-size: 0.9em;
-        margin: 5px 0;
-        font-weight: bold;
-    }
-
-    /* 로그 항목 스타일 (폰트 크기 변수 적용) */
+    /* 로그 항목 스타일 (타임라인 표시 포함) */
     .log-entry {
         display:flex;
         flex-direction:column;
@@ -289,11 +188,12 @@
         opacity:0;
         transform: translateY(10px);
         transition: opacity 0.3s ease, transform 0.3s ease;
+        position: relative;
     }
-    .log-entry.show {
-        opacity:1;
-        transform: translateY(0);
-    }
+    .log-entry.show { opacity:1; transform: translateY(0); }
+    .original-container, .translated-container { display: flex; align-items: flex-end; }
+    .original-container { justify-content: flex-start; }
+    .translated-container { justify-content: flex-end; }
     .original, .translated {
         max-width:70%;
         padding:10px 14px;
@@ -301,23 +201,22 @@
         word-wrap:break-word;
         font-size: var(--log-font-size);
         transition: background 0.3s, color 0.3s, font-size 0.3s;
+        order: 1;
     }
-    .original {
-        background: var(--original-bg);
-        color: var(--original-text);
-        align-self:flex-start;
-    }
-    .translated {
-        background: var(--translated-bg);
-        color: var(--translated-text);
-        align-self:flex-end;
-    }
+    .original { background: var(--original-bg); color: var(--original-text); }
+    .translated { background: var(--translated-bg); color: var(--translated-text); }
     .timestamp {
         font-size:0.75em;
         color: var(--timestamp-color);
-        text-align:center;
         transition: color 0.3s;
+        white-space: nowrap;
+        margin: 0 5px;
+        align-self: flex-end;
+        order: 2;
     }
+    .translated-container .timestamp { order: 0; margin-right: 0; }
+    .original-container .timestamp { margin-left: 0; }
+
 
     #summary-log, #summary-content, #summary-close { display: none; }
 </style>
@@ -330,23 +229,20 @@
         </div>
 
         <div id="right-buttons">
-            <select id="session-select-main">
-                <option value="">[세션 로드 중...]</option>
-            </select>
+            <div id="session-search-container">
+                <input type="text" id="session-search-input" placeholder="세션 선택 또는 검색/시작 이름 입력" value="[세션 로드 중...]" title="세션 이름 검색 또는 새 세션 이름 입력">
+                <div id="session-search-results">
+                    </div>
+            </div>
 
             <button id="utility-menu-toggle" class="all-btn" title="기타 기능">•••</button>
 
             <div id="utility-dropdown-menu">
                 <button id="toggle-summary" class="all-btn">요약</button>
-
-                <button id="diarize-btn" class="all-btn" title="선택한 세션을 분석합니다. (CPU로 실행되어 매우 오래 걸릴 수 있습니다)">화자 분석</button>
-
+                <button id="diarize-btn" class="all-btn" title="선택한 세션을 분석합니다.">화자 분석</button>
                 <button id="delete-btn" class="all-btn" title="선택한 세션을 DB와 wav 폴더에서 영구 삭제합니다">세션 삭제</button>
-
                 <button class="all-btn" id="lang-toggle-btn">🇺🇸 영어 선택 중</button>
-
                 <button id="toggle-theme" class="all-btn">🌙 다크 모드</button>
-
                 <div class="setting-item">
                     <label>화면 확대/축소</label>
                     <div class="zoom-controls">
@@ -355,7 +251,6 @@
                         <button id="zoom-in-btn">+</button>
                     </div>
                 </div>
-
                 <div class="setting-item">
                     <label>번역 로그 폰트 크기</label>
                     <div class="zoom-controls">
@@ -376,39 +271,33 @@
     const socket = io();
     const body = document.body;
     const logDiv = document.getElementById("log");
-    const toggleBtn = document.getElementById("toggle-summary"); // ⭐️ '요약' 버튼
     const logs = [];
+
+    // ⭐️ [신규] 검색 드롭다운 관련 변수
+    const sessionSearchInput = document.getElementById("session-search-input");
+    const sessionSearchResults = document.getElementById("session-search-results");
+    let allSessions = []; // 서버에서 받은 전체 세션 목록 (타임라인 포함)
+    let selectedSessionId = ""; // 현재 선택된/입력된 세션 ID
+    let highlightedIndex = -1; // 키보드 탐색을 위한 하이라이트 인덱스
 
     // ⭐️ 유틸리티 메뉴 관련 변수
     const utilityMenuToggle = document.getElementById("utility-menu-toggle");
     const utilityDropdownMenu = document.getElementById("utility-dropdown-menu");
+    const diarizeBtn = document.getElementById("diarize-btn");
+    const deleteBtn = document.getElementById("delete-btn");
+    const toggleBtn = document.getElementById("toggle-summary");
 
-    // ⭐️ 통합된 메뉴 내부 버튼 변수
+    // ⭐️ 기타 변수
+    const clearLogBtn = document.getElementById("clear-log-btn");
+    const sessionControlBtn = document.getElementById("session-control-btn");
     const themeBtn = document.getElementById("toggle-theme");
     const langToggleBtn = document.getElementById("lang-toggle-btn");
-
-    // ⭐️ 설정 요소 변수
     const zoomInBtn = document.getElementById("zoom-in-btn");
     const zoomOutBtn = document.getElementById("zoom-out-btn");
     const zoomLevelSpan = document.getElementById("zoom-level");
     const fontDecreaseBtn = document.getElementById("font-decrease-btn");
     const fontIncreaseBtn = document.getElementById("font-increase-btn");
     const fontSizeLevelSpan = document.getElementById("font-size-level");
-
-    // ⭐️ [신규] 메인 페이지 세션 드롭다운
-    const sessionSelectMain = document.getElementById("session-select-main");
-
-    // ⭐️ [신규] 화자 분석 버튼 변수
-    const diarizeBtn = document.getElementById("diarize-btn");
-
-    // ⭐️ [신규] 세션 삭제 버튼 변수
-    const deleteBtn = document.getElementById("delete-btn");
-
-    // ⭐️ 로그 클리어 버튼 변수
-    const clearLogBtn = document.getElementById("clear-log-btn");
-
-    // ⭐️ 세션 제어 버튼 변수
-    const sessionControlBtn = document.getElementById("session-control-btn");
 
     let summaryWindow = null;
     let currentTheme = localStorage.getItem('theme') || 'dark';
@@ -418,7 +307,44 @@
     let currentFontSize = 14;
     const fontSizeStep = 2;
 
+
     // --- 초기화 실행 ---
+    function updateZoom(newZoom) {
+        currentZoom = Math.max(0.5, Math.min(2.0, newZoom));
+        document.body.style.zoom = currentZoom;
+        zoomLevelSpan.textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+    function updateFontSize(newSize) {
+        currentFontSize = Math.max(10, Math.min(24, newSize));
+        document.documentElement.style.setProperty('--log-font-size', `${currentFontSize}px`);
+        let levelText = "기본";
+        if (currentFontSize > 14) levelText = `+${(currentFontSize - 14) / fontSizeStep}`;
+        else if (currentFontSize < 14) levelText = `-${(14 - currentFontSize) / fontSizeStep}`;
+        fontSizeLevelSpan.textContent = levelText;
+        const entries = logDiv.querySelectorAll('.original, .translated');
+        entries.forEach(el => el.style.fontSize = `${currentFontSize}px`);
+    }
+    function updateLangButton(lang) {
+        if (lang === "en") {
+            langToggleBtn.textContent = "🇺🇸 영어 선택 중";
+        } else if (lang === "ja") {
+            langToggleBtn.textContent = "🇯🇵 일본어 선택 중";
+        } else {
+            langToggleBtn.textContent = "Language 🇯🇵/🇺🇸";
+        }
+    }
+    function applyTheme(theme) {
+        if (theme === 'light') {
+            body.classList.add('light-mode');
+            themeBtn.innerHTML = "🌙 다크 모드";
+        } else {
+            body.classList.remove('light-mode');
+            themeBtn.innerHTML = "🌞 라이트 모드";
+        }
+        localStorage.setItem('theme', theme);
+        currentTheme = theme;
+    }
+
     applyTheme(currentTheme);
     updateLangButton(currentLang);
     updateZoom(currentZoom);
@@ -436,7 +362,7 @@
 
     // --- 페이지 로드 시 ---
     document.addEventListener("DOMContentLoaded", () => {
-        addSystemMessage("서버 준비 완료. 'Start Translation'을 눌러 세션을 시작하세요.");
+        addSystemMessage("서버 준비 완료. 'Start Translation'을 눌러 세션을 시작하거나 검색하세요.");
     });
 
 
@@ -450,31 +376,24 @@
         }
     });
 
-    // ⭐️ 세션 제어 버튼 클릭 이벤트
+    // ⭐️ 세션 제어 버튼 클릭 이벤트 (선택된 ID 또는 입력 필드 값 사용)
     sessionControlBtn.addEventListener('click', () => {
         const currentText = sessionControlBtn.textContent;
+        const currentSessionId = sessionSearchInput.value.trim();
 
-        if (currentText === 'Start Translation') {
-            // --- 1. 시작 로직 ---
-            const promptMessage = '새 세션의 이름을 입력하세요:';
-            // (오늘 날짜와 시간으로 기본값 제안)
-            const defaultName = new Date().toLocalISOString().slice(0, 16).replace('T', '_');
-            const sessionId = prompt(promptMessage, defaultName);
-
-            if (sessionId && sessionId.trim() !== "") {
-                const trimmedId = sessionId.trim();
-                console.log(`🚀 'start_translation_session' 요청 전송 (ID: ${trimmedId})`);
-                addSystemMessage(`'${trimmedId}' 세션 시작 요청 중... (서버 응답 대기)`);
-                socket.emit("start_translation_session", {
-                    session_id: trimmedId
-                });
-            } else {
-                console.log("세션 시작 취소.");
+        if (currentText.includes('Start')) {
+            if (!currentSessionId || currentSessionId === "[세션 없음]" || currentSessionId === "[세션 로드 중...]") {
+                alert("시작할 세션 이름을 입력하거나 기존 세션을 선택해주세요.");
+                return;
             }
+            console.log(`🚀 'start_translation_session' 요청 전송 (ID: ${currentSessionId})`);
+            addSystemMessage(`'${currentSessionId}' 세션 시작 요청 중... (서버 응답 대기)`);
+            socket.emit("start_translation_session", {
+                session_id: currentSessionId
+            });
 
-        } else if (currentText === 'End Session') {
-            // --- 2. 중지 로직 ---
-            if (confirm("현재 번역 세션을 중지하시겠습니까?")) {
+        } else if (currentText.includes('End')) {
+            if (confirm(`현재 번역 세션 [${currentSessionId}]을(를) 중지하시겠습니까?`)) {
                 console.log("🚀 'stop_translation_session' 요청 전송");
                 addSystemMessage("세션 중지 요청 중...");
                 socket.emit("stop_translation_session", {});
@@ -482,72 +401,9 @@
         }
     });
 
-    // (Helper for prompt)
-    Date.prototype.toLocalISOString = function() {
-        var tzo = -this.getTimezoneOffset(),
-            dif = tzo >= 0 ? '+' : '-',
-            pad = function(num) { return (num < 10 ? '0' : '') + num; };
-        return this.getFullYear() +
-            '-' + pad(this.getMonth() + 1) +
-            '-' + pad(this.getDate()) +
-            'T' + pad(this.getHours()) +
-            ':' + pad(this.getMinutes());
-    }
-
-
-    // ⭐️ [신규] '화자 분석' 버튼 클릭 리스너 (드롭다운 메뉴 내부)
-    diarizeBtn.addEventListener('click', () => {
-        utilityDropdownMenu.style.display = 'none'; // ⭐️ 메뉴 닫기
-        const selectedSessionId = sessionSelectMain.value;
-
-        // [안전 장치 1] 세션 선택 확인
-        if (!selectedSessionId) {
-            alert("먼저 분석할 세션을 선택해주세요.");
-            return;
-        }
-
-        // [안전 장치 2] 실시간 번역이 실행 중인지 확인
-        if (sessionControlBtn.textContent === 'End Session') {
-            alert("실시간 번역을 먼저 중지해야 화자 분리를 실행할 수 있습니다.");
-            return;
-        }
-
-        if (confirm(`[${selectedSessionId}] 세션의 화자 분리 분석을 시작하시겠습니까?\n\n(실시간 로그가 지워지고 분석 결과가 표시됩니다)\n(CPU로 실행되어 오디오 길이에 따라 매우 오랜 시간이 소요됩니다)`)) {
-            // 1. 메인 로그 비우기
-            logs.length = 0;
-            renderLogs(logDiv, logs, false);
-
-            // 2. 로딩 메시지 표시
-            addSystemMessage(`[세션 '${selectedSessionId}' 화자 분리 분석 중...]\n\n(CPU로 실행되므로 오디오 길이에 따라 몇 분에서 몇십 분까지 소요될 수 있습니다.)`);
-
-            // 3. 서버에 *선택된 세션 ID*로 화자 분리 요청
-            socket.emit("request_diarization", { session_id: selectedSessionId });
-        }
-    });
-
-    // ⭐️ [신규] '세션 삭제' 버튼 클릭 리스너 (드롭다운 메뉴 내부)
-    deleteBtn.addEventListener('click', () => {
-        utilityDropdownMenu.style.display = 'none'; // ⭐️ 메뉴 닫기
-        const selectedSessionId = sessionSelectMain.value;
-
-        // [안전 장치 1] 세션 선택 확인
-        if (!selectedSessionId) {
-            alert("먼저 삭제할 세션을 선택해주세요.");
-            return;
-        }
-
-        // [안전 장치 2] 실시간 번역이 실행 중인지 확인
-        if (sessionControlBtn.textContent === 'End Session') {
-            alert("실시간 번역이 실행 중일 때는 세션을 삭제할 수 없습니다.");
-            return;
-        }
-
-        if (confirm(`[${selectedSessionId}] 세션을 영구적으로 삭제하시겠습니까?\n\n(DB 기록과 .wav 파일이 모두 삭제되며, 이 작업은 되돌릴 수 없습니다.)`)) {
-            console.log(`🚀 'request_delete_session' 요청 전송 (ID: ${selectedSessionId})`);
-            socket.emit("request_delete_session", { session_id: selectedSessionId });
-        }
-    });
-
+    // ----------------------------------------------------
+    // ✨ [수정 완료] 유틸리티 메뉴 내부 기능 리스너 (stopPropagation 추가)
+    // ----------------------------------------------------
 
     // ⭐️ 유틸리티 메뉴 토글 기능
     utilityMenuToggle.addEventListener('click', (event) => {
@@ -566,123 +422,435 @@
         }
     });
 
+    // ⭐️ 화자 분석 버튼 클릭 리스너 (stopPropagation 추가)
+    diarizeBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        utilityDropdownMenu.style.display = 'none';
+        const selectedId = sessionSearchInput.value.trim();
 
-    // ⭐️ 언어 토글 버튼 클릭 이벤트
+        if (!selectedId || sessionControlBtn.textContent.includes('End')) {
+             if (sessionControlBtn.textContent.includes('End')) {
+                alert("실시간 번역을 먼저 중지해야 분석을 실행할 수 있습니다.");
+             } else {
+                 alert("먼저 분석할 세션을 선택/입력하거나 로드해주세요.");
+             }
+            return;
+        }
+
+        if (confirm(`[${selectedId}] 세션의 화자 분리 분석을 시작하시겠습니까?`)) {
+            logs.length = 0;
+            renderLogs(logDiv, logs, false);
+            addSystemMessage(`[세션 '${selectedId}' 화자 분리 분석 중...]`);
+            socket.emit("request_diarization", { session_id: selectedId });
+        }
+    });
+
+    // ⭐️ 세션 삭제 버튼 클릭 리스너 (stopPropagation 추가)
+    deleteBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        utilityDropdownMenu.style.display = 'none';
+        const selectedId = sessionSearchInput.value.trim();
+
+        if (!selectedId || sessionControlBtn.textContent.includes('End')) {
+            if (sessionControlBtn.textContent.includes('End')) {
+                 alert("실시간 번역이 실행 중일 때는 세션을 삭제할 수 없습니다.");
+            } else {
+                 alert("먼저 삭제할 세션을 선택/입력해주세요.");
+            }
+            return;
+        }
+
+        if (confirm(`[${selectedId}] 세션을 영구적으로 삭제하시겠습니까? (되돌릴 수 없음)`)) {
+            console.log(`🚀 'request_delete_session' 요청 전송 (ID: ${selectedId})`);
+            socket.emit("request_delete_session", { session_id: selectedId });
+        }
+    });
+
+    // ⭐️ 요약 버튼 클릭 리스너 (stopPropagation 추가)
+    toggleBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        utilityDropdownMenu.style.display = 'none';
+        const selectedId = sessionSearchInput.value.trim();
+
+        if (!selectedId) {
+            alert("먼저 '요약'할 세션을 선택/입력해주세요.");
+            return;
+        }
+
+        openSummaryWindow(selectedId);
+        socket.emit("request_specific_summary", { session_id: selectedId });
+    });
+
+
+    // ⭐️ 언어 토글 버튼 클릭 이벤트 (stopPropagation 추가)
     langToggleBtn.addEventListener("click", (event) => {
         event.stopPropagation();
         const newLang = currentLang === "en" ? "ja" : "en";
-
         currentLang = newLang;
         updateLangButton(newLang);
         localStorage.setItem('lang', newLang);
-
-        socket.emit("change_language", {
-            language: newLang,
-            target: 'ko'
-        });
+        socket.emit("change_language", { language: newLang, target: 'ko' });
         console.log(`🎧 언어 변경 요청: ${newLang} -> ko`);
     });
 
-    // ⭐️ 언어 버튼 UI 업데이트 함수
-    function updateLangButton(lang) {
-        if (lang === "en") {
-            langToggleBtn.textContent = "🇺🇸 영어 선택 중";
-        } else if (lang === "ja") {
-            langToggleBtn.textContent = "🇯🇵 일본어 선택 중";
-        } else {
-            langToggleBtn.textContent = "Language 🇯🇵/🇺🇸";
-        }
-    }
-
-    // ⭐️ 테마 토글 버튼 리스너
+    // ⭐️ 테마 토글 버튼 리스너 (stopPropagation 추가)
     themeBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         applyTheme(newTheme);
     });
 
+    // ⭐️ 줌/폰트 리스너 (stopPropagation 추가)
+    zoomInBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        updateZoom(currentZoom + zoomStep);
+    });
+    zoomOutBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        updateZoom(currentZoom - zoomStep);
+    });
+    fontIncreaseBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        updateFontSize(currentFontSize + fontSizeStep);
+    });
+    fontDecreaseBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        updateFontSize(currentFontSize - fontSizeStep);
+    });
 
-    // ⭐️ [수정] 팝업 창 통신 함수 (요약 갱신용)
-    window.requestSpecificSummaryFromPopup = (sessionId) => {
-        socket.emit("request_specific_summary", { session_id: sessionId });
-        if (summaryWindow && !summaryWindow.closed) {
-            const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-            if (summaryTextDiv) summaryTextDiv.textContent = '[선택한 세션 요약 로드 중...]';
-        }
-    }
+    // ----------------------------------------------------
+    // ✨ 검색 가능한 세션 드롭다운 로직 (유지)
+    // ----------------------------------------------------
 
-    // ⭐️ [제거] window.requestRenameSessionFromPopup 함수 제거
+    // 세션 검색 결과 렌더링 함수 (타임라인 포함)
+    function renderSessionResults(filterText = '') {
+        sessionSearchResults.innerHTML = '';
+        const lowerFilter = filterText.toLowerCase();
 
+        const filteredSessions = allSessions.filter(session =>
+            session.session_id.toLowerCase().includes(lowerFilter)
+        );
 
-    // ⭐️ 줌/폰트 크기 함수
-    function updateZoom(newZoom) {
-        currentZoom = Math.max(0.5, Math.min(2.0, newZoom));
-        document.body.style.zoom = currentZoom;
-        zoomLevelSpan.textContent = `${Math.round(currentZoom * 100)}%`;
-    }
-    function updateFontSize(newSize) {
-        currentFontSize = Math.max(10, Math.min(24, newSize));
-        document.documentElement.style.setProperty('--log-font-size', `${currentFontSize}px`);
-        let levelText = "기본";
-        if (currentFontSize > 14) levelText = `+${(currentFontSize - 14) / fontSizeStep}`;
-        else if (currentFontSize < 14) levelText = `-${(14 - currentFontSize) / fontSizeStep}`;
-        fontSizeLevelSpan.textContent = levelText;
-        const entries = logDiv.querySelectorAll('.original, .translated');
-        entries.forEach(el => el.style.fontSize = `${currentFontSize}px`);
-    }
-
-    // ⭐️ 줌/폰트 리스너
-    zoomInBtn.addEventListener('click', () => updateZoom(currentZoom + zoomStep));
-    zoomOutBtn.addEventListener('click', () => updateZoom(currentZoom - zoomStep));
-    fontIncreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize + fontSizeStep));
-    fontDecreaseBtn.addEventListener('click', () => updateFontSize(currentFontSize - fontSizeStep));
-
-    // ⭐️ 테마 적용 함수 (팝업 동기화) - [수정됨: 팝업 버튼 색상 제거]
-    function applyTheme(theme) {
-        if (theme === 'light') {
-            body.classList.add('light-mode');
-            themeBtn.innerHTML = "🌙 다크 모드";
-        } else {
-            body.classList.remove('light-mode');
-            themeBtn.innerHTML = "🌞 라이트 모드";
-        }
-        localStorage.setItem('theme', theme);
-        currentTheme = theme;
-
-        if (summaryWindow && !summaryWindow.closed) {
-            // 팝업 창 테마 즉시 동기화
-            const doc = summaryWindow.document;
-            const isLight = currentTheme === 'light';
-
-            const popupBg = isLight ? '#f4f4f9' : '#222';
-            const popupText = isLight ? '#333' : '#fff';
-            const popupHighlight = isLight ? '#007bff' : '#1dd1a1';
-            const popupBorder = isLight ? '#ddd' : '#555';
-            const popupSummaryBg = isLight ? '#f9f9f9' : '#2a2a2a';
-
-            doc.body.style.background = popupBg;
-            doc.body.style.color = popupText;
-            const h1Element = doc.querySelector('h1');
-            if(h1Element) h1Element.style.color = popupHighlight;
-
-            const summaryTextElement = doc.getElementById('summary-text');
-            if(summaryTextElement) {
-                summaryTextElement.style.borderColor = popupBorder;
-                summaryTextElement.style.background = popupSummaryBg;
-            }
-        }
-    }
-
-
-    // ⭐️ [수정] 팝업 창 열기 함수 (세션 ID를 인자로 받음) - [수정됨: 이름 변경 관련 요소 제거]
-    function openSummaryWindow(sessionId) {
-        if (summaryWindow && !summaryWindow.closed) {
-            summaryWindow.focus();
-            // ⭐️ 이미 열려있으면 요약만 다시 요청
-            socket.emit("request_specific_summary", { session_id: sessionId });
+        if (filteredSessions.length === 0) {
+            const noResult = document.createElement('div');
+            noResult.classList.add('session-item');
+            noResult.textContent = filterText ? `[새 세션 생성: "${filterText}"]` : "세션 목록 없음";
+            noResult.addEventListener('click', () => {
+                selectSession(filterText);
+                sessionSearchResults.style.display = 'none';
+            });
+            sessionSearchResults.appendChild(noResult);
             return;
         }
 
+        filteredSessions.forEach((session, index) => {
+            const item = document.createElement('div');
+            item.classList.add('session-item');
+            item.setAttribute('data-id', session.session_id);
+            item.setAttribute('data-index', index);
+
+            const startTime = session.start_time ? new Date(session.start_time).toLocaleString('ko-KR') : '시간 정보 없음';
+            const duration = session.duration ? ` (약 ${session.duration}초)` : '';
+
+            item.innerHTML = `
+                <div>${session.session_id}</div>
+                <span class="session-timeline">${startTime}${duration}</span>
+            `;
+
+            // 클릭 이벤트 리스너
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectSession(session.session_id);
+                sessionSearchResults.style.display = 'none';
+            });
+
+            sessionSearchResults.appendChild(item);
+        });
+
+        highlightedIndex = -1;
+    }
+
+    // 세션 선택 처리 함수
+    function selectSession(sessionId) {
+        sessionSearchInput.value = sessionId;
+        selectedSessionId = sessionId;
+        sessionSearchResults.style.display = 'none';
+
+        // 새 세션 이름이 아닌, 기존 세션 목록에 있는 ID를 선택했을 경우에만 메시지 표시
+        const isExisting = allSessions.some(s => s.session_id === sessionId);
+        if (isExisting) {
+            addSystemMessage(`세션 '${sessionId}'을(를) 선택했습니다. 'Start Translation'을 누르면 이 세션의 로그가 로드됩니다.`);
+            socket.emit("request_load_session", { session_id: sessionId });
+        } else {
+             addSystemMessage(`새 세션 이름 '${sessionId}'을(를) 입력했습니다. 'Start Translation'을 누르면 새 세션이 시작됩니다.`);
+        }
+    }
+
+    // 입력 필드 입력 이벤트 (검색 기능)
+    sessionSearchInput.addEventListener('input', () => {
+        const filter = sessionSearchInput.value.trim();
+        renderSessionResults(filter);
+        sessionSearchResults.style.display = 'block';
+    });
+
+    // 입력 필드 포커스 시 (드롭다운 열기)
+    sessionSearchInput.addEventListener('focus', () => {
+        renderSessionResults(sessionSearchInput.value.trim());
+        sessionSearchResults.style.display = 'block';
+    });
+
+    // 외부 클릭 시 드롭다운 닫기
+    document.addEventListener('click', (event) => {
+        const container = document.getElementById("session-search-container");
+        if (!container.contains(event.target)) {
+            sessionSearchResults.style.display = 'none';
+        }
+    });
+
+    // ⭐️ 키보드 탐색 기능
+    sessionSearchInput.addEventListener('keydown', (e) => {
+        const results = Array.from(sessionSearchResults.querySelectorAll('.session-item'));
+        if (results.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedIndex = (highlightedIndex + 1) % results.length;
+            updateHighlight(results);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedIndex = (highlightedIndex - 1 + results.length) % results.length;
+            updateHighlight(results);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex !== -1) {
+                // 하이라이트 된 항목 선택
+                results[highlightedIndex].click();
+            } else {
+                // 하이라이트 없이 엔터 시, 현재 입력된 값으로 세션 시작/중지 시도
+                sessionControlBtn.click();
+            }
+        }
+    });
+
+    // 하이라이트 업데이트 헬퍼
+    function updateHighlight(results) {
+        results.forEach((item, index) => {
+            item.classList.toggle('highlighted', index === highlightedIndex);
+            if (index === highlightedIndex) {
+                item.scrollIntoView({ block: 'nearest' });
+            }
+        });
+        if (highlightedIndex !== -1) {
+            sessionSearchInput.value = results[highlightedIndex].getAttribute('data-id') || results[highlightedIndex].textContent;
+        } else {
+            // 하이라이트 해제 시 입력 필드 값을 다시 현재 입력 값으로 되돌림
+            // (이 로직은 주석 처리하여, 엔터 전에 입력된 값이 남아있도록 유지)
+        }
+    }
+
+
+    // ----------------------------------------------------
+    // ✨ Socket.IO 연동 로직
+    // ----------------------------------------------------
+
+    // "connect" 핸들러에 세션 목록 요청 추가
+    socket.on("connect", () => {
+        console.log("✅ 서버 연결 성공");
+        console.log("🚀 'request_session_list' 요청 전송");
+        socket.emit("request_session_list", {});
+    });
+
+    // 실시간 번역 로그 수신
+    socket.on("partial_translation", data => {
+        logs.push(data);
+        renderLogs(logDiv, logs, true);
+    });
+
+    // 기존 세션 로그 로드
+    socket.on("session_log_loaded", data => {
+        console.log(`✅ 세션 로그 로드 완료: ${data.session_id}`);
+        logs.length = 0; // 기존 로그 비우기
+        logs.push(...data.logs); // 새 로그 채우기
+        renderLogs(logDiv, logs, true); // 로그 렌더링
+        addSystemMessage(`세션 '${data.session_id}'의 로그를 로드했습니다.`);
+    });
+
+
+    // 서버에서 요약 데이터 수신
+    socket.on("summary_data_updated", data => {
+        if (summaryWindow && !summaryWindow.closed) {
+            const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
+            if (summaryTextDiv) summaryTextDiv.textContent = data.summary;
+            const sessionInfoDiv = summaryWindow.document.getElementById('session-info');
+            if(sessionInfoDiv) sessionInfoDiv.textContent = `세션: ${data.current_session_id}`;
+        }
+    });
+
+    // 화자 분리 결과 수신
+    socket.on("diarization_result", data => {
+        console.log(`✅ 화자 분리 결과 수신: ${data.session_id}`);
+        logDiv.innerHTML = "";
+        if(data.session_id) { addSystemMessage(`--- '${data.session_id}' 화자 분리 완료 ---`); }
+        const lines = data.result_text.split('\n');
+        lines.forEach(line => {
+            if (line.startsWith('**SPEAKER_')) {
+                const parts = line.split('**:');
+                const speaker = parts[0].replace(/\*\*/g, '');
+                const originalText = parts[1] ? parts[1].trim() : "(내용 없음)";
+                const entry = document.createElement("div");
+                entry.classList.add("log-entry");
+                const speakerDiv = document.createElement("div");
+                speakerDiv.classList.add("timestamp");
+                speakerDiv.textContent = speaker;
+                const originalContainer = document.createElement("div");
+                originalContainer.classList.add("original-container");
+                const originalDiv = document.createElement("div");
+                originalDiv.classList.add("original");
+                originalDiv.textContent = originalText;
+                originalDiv.style.fontSize = `${currentFontSize}px`;
+                originalContainer.appendChild(originalDiv);
+                originalContainer.appendChild(speakerDiv);
+                entry.appendChild(originalContainer);
+                logDiv.appendChild(entry);
+                setTimeout(() => entry.classList.add("show"), 10);
+            } else if (line.startsWith('**_SAME_SPEAKER_**')) {
+                const parts = line.split('**:');
+                const originalText = parts[1] ? parts[1].trim() : "(내용 없음)";
+                const entry = document.createElement("div");
+                entry.classList.add("log-entry");
+                const originalContainer = document.createElement("div");
+                originalContainer.classList.add("original-container");
+                const originalDiv = document.createElement("div");
+                originalDiv.classList.add("original");
+                originalDiv.textContent = originalText;
+                originalDiv.style.fontSize = `${currentFontSize}px`;
+                originalContainer.appendChild(originalDiv);
+                entry.appendChild(originalContainer);
+                logDiv.appendChild(entry);
+                setTimeout(() => entry.classList.add("show"), 10);
+            } else if (line.startsWith('*(') && line.endsWith(')*')) {
+                const translatedText = line.substring(2, line.length-2);
+                const translatedContainer = document.createElement("div");
+                translatedContainer.classList.add("translated-container");
+                const translatedDiv = document.createElement("div");
+                translatedDiv.classList.add("translated");
+                translatedDiv.textContent = translatedText;
+                translatedDiv.style.fontSize = `${currentFontSize}px`;
+                translatedContainer.appendChild(translatedDiv);
+                const lastEntry = logDiv.lastChild;
+                if(lastEntry && lastEntry.classList.contains('log-entry')) {
+                    lastEntry.appendChild(translatedContainer);
+                }
+            }
+        });
+        logDiv.scrollTop = 0;
+    });
+
+    // 메인 페이지 세션 목록 업데이트 (타임라인 포함)
+    socket.on("session_list_updated", data => {
+        console.log("✅ 세션 목록 수신");
+
+        allSessions = data.all_sessions.map(session_id => {
+            const sessionData = data.session_details ? data.session_details.find(d => d.session_id === session_id) : {};
+            return {
+                session_id: session_id,
+                start_time: sessionData?.start_time || new Date().toISOString(),
+                duration: sessionData?.duration || 0
+            };
+        });
+
+        if (data.latest_session) {
+            sessionSearchInput.value = data.latest_session;
+            selectedSessionId = data.latest_session;
+        } else {
+             sessionSearchInput.value = "[세션 없음]";
+             selectedSessionId = "";
+        }
+
+        renderSessionResults(sessionSearchInput.value);
+    });
+
+    // 서버로부터 새 세션이 시작되었음을 확인
+    socket.on("new_session_started", data => {
+        logs.length = 0;
+        renderLogs(logDiv, logs, false);
+        sessionControlBtn.textContent = "End Session";
+        sessionControlBtn.classList.add("session-active");
+        sessionSearchInput.value = data.session_id;
+        addSystemMessage(`--- 새 세션 '${data.session_id}'이(가) 시작되었습니다. ---`);
+        socket.emit("request_session_list", {});
+    });
+
+    // 서버로부터 세션이 중지되었음을 확인
+    socket.on("session_stopped", data => {
+        console.log(`✅ 서버가 세션 중지 확인: ${data.message}`);
+        sessionControlBtn.textContent = "Start Translation";
+        sessionControlBtn.classList.remove("session-active");
+        addSystemMessage(`--- ${data.message} ---`);
+    });
+
+    // 기타 오류/변경 이벤트
+    socket.on("language_changed", data => { console.log(`✅ 서버가 언어 변경 확인: ${data.language}`); });
+    socket.on("session_start_failed", data => { console.error(`❌ 세션 시작 실패: ${data.error}`); addSystemMessage(`[오류] 세션 시작 실패: ${data.error}`); });
+    socket.on("diarization_failed", data => { console.error(`❌ 화자 분리 실패: ${data.error}`); logDiv.innerHTML = ""; addSystemMessage(`[오류] 화자 분리 실패: ${data.error}`); addSystemMessage(`--- 세션 '${data.session_id}' 분석 실패 ---`); });
+    socket.on("session_delete_success", data => { console.log(`✅ 세션 삭제 성공: ${data.session_id}`); addSystemMessage(`세션 '${data.session_id}'이(가) 삭제되었습니다.`); socket.emit("request_session_list", {}); });
+
+
+    // ⭐️ 로그 렌더링 함수 (타임라인 포함)
+    function renderLogs(container, dataLogs, scrollToBottom=false){
+        container.innerHTML = "";
+        dataLogs.forEach(data => {
+            const entry = document.createElement("div");
+            entry.classList.add("log-entry");
+
+            // --- 원본 텍스트 컨테이너 (좌측) ---
+            const originalContainer = document.createElement("div");
+            originalContainer.classList.add("original-container");
+
+            const originalDiv = document.createElement("div");
+            originalDiv.classList.add("original");
+            originalDiv.textContent = data.original_text || data.original;
+            originalDiv.style.fontSize = `${currentFontSize}px`;
+
+            const timeDivOriginal = document.createElement("div");
+            timeDivOriginal.classList.add("timestamp");
+            timeDivOriginal.textContent = data.time || "";
+
+            originalContainer.appendChild(originalDiv);
+            originalContainer.appendChild(timeDivOriginal);
+            entry.appendChild(originalContainer);
+
+            // --- 번역 텍스트 컨테이너 (우측) ---
+            if (data.translated_text || data.translated) {
+                const translatedContainer = document.createElement("div");
+                translatedContainer.classList.add("translated-container");
+
+                const translatedDiv = document.createElement("div");
+                translatedDiv.classList.add("translated");
+                translatedDiv.textContent = data.translated_text || data.translated;
+                translatedDiv.style.fontSize = `${currentFontSize}px`;
+
+                const timeDivTranslated = document.createElement("div");
+                timeDivTranslated.classList.add("timestamp");
+                timeDivTranslated.textContent = data.time || "";
+
+                translatedContainer.appendChild(timeDivTranslated);
+                translatedContainer.appendChild(translatedDiv);
+                entry.appendChild(translatedContainer);
+            }
+
+            container.appendChild(entry);
+            setTimeout(() => entry.classList.add("show"), 10);
+        });
+
+        if(scrollToBottom) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+
+    // 팝업 창 열기 함수
+    function openSummaryWindow(sessionId) {
+        if (summaryWindow && !summaryWindow.closed) { summaryWindow.focus(); socket.emit("request_specific_summary", { session_id: sessionId }); return; }
         const windowFeatures = 'width=500,height=600,scrollbars=yes,resizable=yes,top=100,left=100';
         summaryWindow = window.open('', 'SummaryPopup', windowFeatures);
 
@@ -699,19 +867,12 @@
                 <style>
                     body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: ${popupBg}; color: ${popupText}; line-height: 1.6; transition: background 0.3s, color 0.3s; }
                     h1 { text-align: center; color: ${popupHighlight}; margin-bottom: 5px; font-size: 1.5em; }
-                    /* ⭐️ [신규] 세션 ID 표시 */
-                    #session-info {
-                        text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 0.9em;
-                        color: ${isLight ? '#555' : '#aaa'};
-                    }
-                    /* ⭐️ [제거] #session-controls 제거됨 */
-
+                    #session-info { text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 0.9em; color: ${isLight ? '#555' : '#aaa'}; }
                     #summary-text { white-space: pre-wrap; border: 1px solid ${popupBorder}; padding: 15px; border-radius: 8px; background: ${popupSummaryBg}; min-height: 300px; }
                 </style>
                 </head><body>
                     <h1>번역 요약</h1>
                     <div id="session-info">세션: ${sessionId}</div>
-
                     <div id="summary-text">[요약 생성 중...]</div>
                 </body></html>
             `;
@@ -722,236 +883,6 @@
         }
     }
 
-    // ⭐️ 요약 버튼 클릭 리스너 (동일)
-    toggleBtn.addEventListener("click", () => {
-        utilityDropdownMenu.style.display = 'none'; // ⭐️ 메뉴 닫기
-        const selectedSessionId = sessionSelectMain.value;
-        if (!selectedSessionId) {
-            alert("먼저 '요약'할 세션을 선택해주세요.");
-            return;
-        }
-
-        // 1. 팝업창 열기 (세션 ID 전달)
-        openSummaryWindow(selectedSessionId);
-
-        // 2. 서버에 요약 요청
-        socket.emit("request_specific_summary", { session_id: selectedSessionId });
-    });
-
-    // ----------------------------------------------------
-    // ✨ Socket.IO 연동 로직
-    // ----------------------------------------------------
-
-    // ⭐️ "connect" 핸들러에 세션 목록 요청 추가
-    socket.on("connect", () => {
-        console.log("✅ 서버 연결 성공");
-        console.log("🚀 'request_session_list' 요청 전송");
-        socket.emit("request_session_list", {});
-    });
-
-    // 1. 실시간 번역 로그 수신 (동일)
-    socket.on("partial_translation", data => {
-        logs.push(data);
-        renderLogs(logDiv, logs, true);
-    });
-
-    // 2. 서버에서 요약 데이터 수신 (팝업 창 업데이트)
-    socket.on("summary_data_updated", data => {
-        console.log("✅ 요약 데이터 수신:", data);
-
-        // ⭐️ [수정] 팝업 창 내용만 업데이트
-        if (summaryWindow && !summaryWindow.closed) {
-            const summaryTextDiv = summaryWindow.document.getElementById('summary-text');
-            if (summaryTextDiv) summaryTextDiv.textContent = data.summary;
-
-            // ⭐️ [수정] 팝업의 세션 ID 표시 갱신
-            const sessionInfoDiv = summaryWindow.document.getElementById('session-info');
-            if(sessionInfoDiv) sessionInfoDiv.textContent = `세션: ${data.current_session_id}`;
-        }
-    });
-
-    // ⭐️ 3. 화자 분리 결과 수신 (메인 로그에 출력) - [⭐️⭐️⭐️ 수정됨 ⭐️⭐️⭐️]
-    socket.on("diarization_result", data => {
-        console.log(`✅ 화자 분리 결과 수신: ${data.session_id}`);
-
-        // 1. "로딩 중" 메시지 삭제 (전체 클리어)
-        logDiv.innerHTML = "";
-
-        // 2. 시스템 메시지 추가
-        if(data.session_id) {
-            addSystemMessage(`--- '${data.session_id}' 화자 분리 완료 ---`);
-        } else {
-            addSystemMessage(`--- 화자 분리 결과 ---`);
-        }
-
-        // 3. 결과를 한 줄씩 분리하여 로그에 HTML로 직접 추가
-        const lines = data.result_text.split('\n');
-
-        lines.forEach(line => {
-            // ⭐️ [수정] 'SAME_SPEAKER' 태그를 인식하도록 로직 변경
-            if (line.startsWith('**SPEAKER_')) {
-                // ⭐️ 원문 라인 (새 화자)
-                const parts = line.split('**:');
-                const speaker = parts[0].replace(/\*\*/g, '');
-                const originalText = parts[1] ? parts[1].trim() : "(내용 없음)";
-
-                const entry = document.createElement("div");
-                entry.classList.add("log-entry");
-
-                const speakerDiv = document.createElement("div");
-                speakerDiv.classList.add("timestamp");
-                speakerDiv.textContent = speaker; // ⭐️ 화자 태그 표시
-
-                const originalDiv = document.createElement("div");
-                originalDiv.classList.add("original");
-                originalDiv.textContent = originalText;
-                originalDiv.style.fontSize = `${currentFontSize}px`;
-
-                entry.appendChild(speakerDiv);
-                entry.appendChild(originalDiv);
-                logDiv.appendChild(entry);
-                setTimeout(() => entry.classList.add("show"), 10);
-
-            } else if (line.startsWith('**_SAME_SPEAKER_**')) {
-                // ⭐️ 원문 라인 (같은 화자 - 태그 생략)
-                const parts = line.split('**:');
-                const originalText = parts[1] ? parts[1].trim() : "(내용 없음)";
-
-                const entry = document.createElement("div");
-                entry.classList.add("log-entry");
-
-                // ⭐️ speakerDiv를 추가하지 않음
-
-                const originalDiv = document.createElement("div");
-                originalDiv.classList.add("original");
-                originalDiv.textContent = originalText;
-                originalDiv.style.fontSize = `${currentFontSize}px`;
-
-                entry.appendChild(originalDiv);
-                logDiv.appendChild(entry);
-                setTimeout(() => entry.classList.add("show"), 10);
-
-            } else if (line.startsWith('*(') && line.endsWith(')*')) {
-                // ⭐️ 번역 라인
-                const translatedText = line.substring(2, line.length-2);
-
-                const translatedDiv = document.createElement("div");
-                translatedDiv.classList.add("translated");
-                translatedDiv.textContent = translatedText;
-                translatedDiv.style.fontSize = `${currentFontSize}px`;
-
-                const lastEntry = logDiv.lastChild;
-                if(lastEntry && lastEntry.classList.contains('log-entry')) {
-                    lastEntry.appendChild(translatedDiv);
-                }
-            }
-            // 빈 줄은 무시
-        });
-        logDiv.scrollTop = 0; // 맨 위로 스크롤
-    });
-
-    // ⭐️ 4. 메인 페이지 세션 목록 업데이트 (동일)
-    socket.on("session_list_updated", data => {
-        console.log("✅ 세션 목록 수신:", data.all_sessions);
-        if (sessionSelectMain) {
-            sessionSelectMain.innerHTML = ""; // 목록 비우기
-            if (data.all_sessions && data.all_sessions.length > 0) {
-                data.all_sessions.forEach(sessionId => {
-                    const option = document.createElement('option');
-                    option.value = sessionId;
-                    option.textContent = sessionId;
-                    sessionSelectMain.appendChild(option);
-                });
-                // ⭐️ 가장 최근 세션을 자동으로 선택
-                if (data.latest_session) {
-                    sessionSelectMain.value = data.latest_session;
-                }
-            } else {
-                const option = document.createElement('option');
-                option.value = "";
-                option.textContent = "[세션 없음]";
-                sessionSelectMain.appendChild(option);
-            }
-        }
-    });
-
-    // ⭐️ 5. 서버에서 언어 변경 완료 수신 (필요 시)
-    socket.on("language_changed", data => {
-        console.log(`✅ 서버가 언어 변경 확인: ${data.language}`);
-    });
-
-    // ⭐️ 6. 서버로부터 새 세션이 시작되었음을 확인 (동일)
-    socket.on("new_session_started", data => {
-        console.log(`✅ 서버가 새 세션 시작 확인: ${data.session_id}`);
-        // ... (기존 로직 동일) ...
-        logs.length = 0;
-        renderLogs(logDiv, logs, false);
-        sessionControlBtn.textContent = "End Session";
-        sessionControlBtn.classList.add("session-active");
-        addSystemMessage(`--- 새 세션 '${data.session_id}'이(가) 시작되었습니다. ---`);
-
-        // ⭐️ 새 세션이 시작되면 세션 목록을 즉시 갱신
-        socket.emit("request_session_list", {});
-    });
-
-    // ⭐️ 7. 세션 시작 실패 시 (동일)
-    socket.on("session_start_failed", data => {
-        console.error(`❌ 세션 시작 실패: ${data.error}`);
-        addSystemMessage(`[오류] 세션 시작 실패: ${data.error}`);
-    });
-
-    // ⭐️ 8. 서버로부터 세션이 중지되었음을 확인 (동일)
-    socket.on("session_stopped", data => {
-        console.log(`✅ 서버가 세션 중지 확인: ${data.message}`);
-        // ... (기존 로직 동일) ...
-        sessionControlBtn.textContent = "Start Translation";
-        sessionControlBtn.classList.remove("session-active");
-        addSystemMessage(`--- ${data.message} ---`);
-    });
-
-    // ⭐️ 9. 화자 분리 실패 시 처리 (동일)
-    socket.on("diarization_failed", data => {
-        console.error(`❌ 화자 분리 실패: ${data.error}`);
-        logDiv.innerHTML = ""; // 로딩 메시지 삭제
-        addSystemMessage(`[오류] 화자 분리 실패: ${data.error}`);
-        addSystemMessage(`--- 세션 '${data.session_id}' 분석 실패 ---`);
-    });
-
-
-    // ⭐️ 로그 렌더링 함수 (실시간 전용)
-    function renderLogs(container, dataLogs, scrollToBottom=false){
-        container.innerHTML = "";
-        dataLogs.forEach(data => {
-            const entry = document.createElement("div");
-            entry.classList.add("log-entry");
-
-            const timeDiv = document.createElement("div");
-            timeDiv.classList.add("timestamp");
-            timeDiv.textContent = data.time || "";
-
-            const originalDiv = document.createElement("div");
-            originalDiv.classList.add("original");
-            originalDiv.textContent = data.original_text || data.original; // ⭐️ 호환성
-            originalDiv.style.fontSize = `${currentFontSize}px`;
-
-            const translatedDiv = document.createElement("div");
-            translatedDiv.classList.add("translated");
-            translatedDiv.textContent = data.translated_text || data.translated; // ⭐️ 호환성
-            translatedDiv.style.fontSize = `${currentFontSize}px`;
-
-            // 타임스탬프는 위/아래 두 로그 사이에 위치하도록
-            entry.appendChild(timeDiv);
-            entry.appendChild(originalDiv);
-            entry.appendChild(translatedDiv);
-
-            container.appendChild(entry);
-            setTimeout(() => entry.classList.add("show"), 10);
-        });
-
-        if(scrollToBottom) {
-            container.scrollTop = container.scrollHeight;
-        }
-    }
 </script>
 </body>
 </html>
