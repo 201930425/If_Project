@@ -293,7 +293,7 @@
 
                 <div class="setting-item" id="lang-select-container">
                     <label>번역 언어 선택</label>
-                    <button class="all-btn" id="lang-display-btn" title="현재 번역 방향">🇰🇷 한국어 -> 한국어</button>
+                    <button class="all-btn" id="lang-display-btn" title="현재 번역 방향">KR -> KR</button>
                     <div id="lang-dropdown-menu" class="sub-dropdown-menu">
                         </div>
                 </div>
@@ -369,12 +369,12 @@
     let currentSourceLang = localStorage.getItem('source_lang') || 'ko'; // ko, en, ja
     let currentTargetLang = localStorage.getItem('target_lang') || 'ko'; // ko, en
 
-    // ⭐️ [수정] 언어 옵션 데이터 (모든 레이블을 '->' 형식으로 통일)
+    // ⭐️ [최종 수정] 언어 옵션 데이터 (요청하신 KR -> KR, EN -> KR, JP -> KR, KR -> EN 형식으로만 표시)
     const langOptions = [
-        { source: 'ko', target: 'ko', label: '🇰🇷 한국어 -> 한국어 (Self)' },
-        { source: 'en', target: 'ko', label: '🇺🇸 영어 -> 한국어' },
-        { source: 'ja', target: 'ko', label: '🇯🇵 일본어 -> 한국어' },
-        { source: 'ko', target: 'en', label: '🇰🇷 한국어 -> 영어' }
+        { source: 'ko', target: 'ko', label: 'KR -> KR' },
+        { source: 'en', target: 'ko', label: 'EN -> KR' },
+        { source: 'ja', target: 'ko', label: 'JP -> KR' },
+        { source: 'ko', target: 'en', label: 'KR -> EN' }
     ];
 
     // --- 초기화 실행 ---
@@ -395,7 +395,7 @@
     }
     function updateLangDisplay(sourceLang, targetLang) {
         const option = langOptions.find(opt => opt.source === sourceLang && opt.target === targetLang);
-        langDisplayBtn.textContent = option ? option.label : `Error: ${sourceLang} -> ${targetLang}`;
+        langDisplayBtn.textContent = option ? option.label : `${sourceLang.toUpperCase()} -> ${targetLang.toUpperCase()}`;
 
         // 드롭다운 메뉴의 활성 상태 업데이트
         langDropdownMenu.querySelectorAll('.lang-option').forEach(el => {
