@@ -278,7 +278,7 @@
 
         <div id="right-buttons">
             <div id="session-search-container">
-                <input type="text" id="session-search-input" placeholder="기존 세션 검색..." value="[세션 로드 중...]" title="기존 세션 검색 및 불러오기">
+                <input type="text" id="session-search-input" placeholder="세션을 선택하거나 검색하세요..." value="" title="기존 세션 검색 및 불러오기">
                 <div id="session-search-results">
                     </div>
             </div>
@@ -931,15 +931,12 @@
             };
         });
 
-        if (data.latest_session) {
-            sessionSearchInput.value = data.latest_session;
-            selectedSessionId = data.latest_session;
-        } else {
-             sessionSearchInput.value = "[세션 없음]";
-             selectedSessionId = "";
-        }
+        // ⭐️ [수정] 자동 선택 로직 제거 -> 빈 칸으로 초기화
+        sessionSearchInput.value = "";
+        selectedSessionId = "";
 
-        renderSessionResults(sessionSearchInput.value);
+        // 전체 목록 렌더링 (드롭다운 준비)
+        renderSessionResults("");
     });
 
     // 서버로부터 새 세션이 시작되었음을 확인
